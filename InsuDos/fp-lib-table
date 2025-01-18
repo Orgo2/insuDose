@@ -1,0 +1,4 @@
+(fp_lib_table
+  (version 7)
+  (lib (name "InsuDos")(type "KiCad")(uri "${KIPRJMOD}/InsuDos.pretty")(options "")(descr ""))
+)

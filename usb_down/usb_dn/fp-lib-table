@@ -1,0 +1,4 @@
+(fp_lib_table
+  (version 7)
+  (lib (name "InsuDos")(type "KiCad")(uri "${KIPRJMOD}/usb_dn.pretty")(options "")(descr ""))
+)
