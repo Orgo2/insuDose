@@ -16424,7 +16424,7 @@
 				)
 			)
 		)
-		(property "Value" "Antenna_Chip"
+		(property "Value" "Antenna_pcb"
 			(at 46.99 94.7998 90)
 			(effects
 				(font

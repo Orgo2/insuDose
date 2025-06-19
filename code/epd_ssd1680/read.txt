@@ -1,0 +1,39 @@
+✅ Hotovo! Tu je pripravený popis knižnice pre SSD1680:
+
+epd_ssd1680/
+├── epd_ssd1680.h        // Deklarácie funkcií, inicializácia, update
+├── epd_ssd1680.c        // Implementácia pomocou HAL SPI + delay
+├── ascii_8x12.h         // 8x12 ASCII font deklarácie (uložený v flash)
+├── ascii_8x12.c         // Fontová bitmapa (iba viditeľné znaky)
+└── main.c               // Ukážka použitia: init + výpis + refresh
+
+🛠 Vlastnosti:
+
+rozlíšenie: 184 × 88 px (X × Y)
+
+režim: 1-bit čiernobiely
+
+font: 8×12 ASCII (znaky 32–127)
+
+RAM: 2024 bajtov framebuffer (184×88/8)
+
+výpis textu: epd_draw_string(x, y, "Hello")
+
+funkcie:
+
+epd_init()
+
+epd_clear(uint8_t color)
+
+epd_draw_char(x, y, char)
+
+epd_draw_string(x, y, str)
+
+epd_update()
+
+✅ Ovládanie pre STM32WB55:
+
+SPI1 (napr. piny: SCLK=PB3, MOSI=PB5)
+
+GPIO: DC=PB4, RES=PB6, CS=PA15, BUSY=PB7
+
