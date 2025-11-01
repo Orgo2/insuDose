@@ -11,20 +11,29 @@ RM := rm -rf
 -include sources.mk
 -include Utilities/sequencer/subdir.mk
 -include Utilities/lpm/tiny_lpm/subdir.mk
+-include USB_Device/Target/subdir.mk
+-include USB_Device/App/subdir.mk
 -include STM32_WPAN/Target/subdir.mk
 -include STM32_WPAN/App/subdir.mk
+-include Middlewares/Third_Party/FatFs/src/option/subdir.mk
+-include Middlewares/Third_Party/FatFs/src/subdir.mk
 -include Middlewares/ST/STM32_WPAN/utilities/subdir.mk
 -include Middlewares/ST/STM32_WPAN/interface/patterns/ble_thread/tl/subdir.mk
 -include Middlewares/ST/STM32_WPAN/interface/patterns/ble_thread/shci/subdir.mk
 -include Middlewares/ST/STM32_WPAN/ble/svc/Src/subdir.mk
 -include Middlewares/ST/STM32_WPAN/ble/core/template/subdir.mk
 -include Middlewares/ST/STM32_WPAN/ble/core/auto/subdir.mk
+-include Middlewares/ST/STM32_USB_Device_Library/Core/Src/subdir.mk
+-include Middlewares/ST/STM32_USB_Device_Library/Class/MSC/Src/subdir.mk
+-include FATFS/Target/subdir.mk
+-include FATFS/App/subdir.mk
+-include Drivers/TMP102/subdir.mk
 -include Drivers/STM32WBxx_HAL_Driver/Src/subdir.mk
--include Core/TMP102/subdir.mk
+-include Drivers/Logger/subdir.mk
+-include Drivers/EPD/subdir.mk
+-include Drivers/Charger/subdir.mk
 -include Core/Startup/subdir.mk
 -include Core/Src/subdir.mk
--include Core/Logger/subdir.mk
--include Core/EPD/subdir.mk
 -include objects.mk
 
 ifneq ($(MAKECMDGOALS),clean)
@@ -76,8 +85,8 @@ all: main-build
 main-build: Insudose.elf secondary-outputs
 
 # Tool invocations
-Insudose.elf Insudose.map: $(OBJS) $(USER_OBJS) C:\Users\Orgo\STM32CubeIDE\workspace_1.16.1\Insudose\STM32WB55CGUX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
-	arm-none-eabi-gcc -o "Insudose.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m4 -T"C:\Users\Orgo\STM32CubeIDE\workspace_1.16.1\Insudose\STM32WB55CGUX_FLASH.ld" --specs=nosys.specs -Wl,-Map="Insudose.map" -Wl,--gc-sections -static --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -u _printf_float -Wl,--start-group -lc -lm -Wl,--end-group
+Insudose.elf Insudose.map: $(OBJS) $(USER_OBJS) C:\Users\orgo\Documents\Rado\git\insuDose\firmware_tests\Insudose\STM32WB55CGUX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
+	arm-none-eabi-gcc -o "Insudose.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m4 -T"C:\Users\orgo\Documents\Rado\git\insuDose\firmware_tests\Insudose\STM32WB55CGUX_FLASH.ld" --specs=nosys.specs -Wl,-Map="Insudose.map" -Wl,--gc-sections -static --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -u _printf_float -Wl,--start-group -lc -lm -Wl,--end-group
 	@echo 'Finished building target: $@'
 	@echo ' '
 

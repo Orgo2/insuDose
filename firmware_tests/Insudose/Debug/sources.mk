@@ -23,20 +23,29 @@ C_DEPS :=
 
 # Every subdirectory with source files must be described here
 SUBDIRS := \
-Core/EPD \
-Core/Logger \
 Core/Src \
 Core/Startup \
-Core/TMP102 \
+Drivers/Charger \
+Drivers/EPD \
+Drivers/Logger \
 Drivers/STM32WBxx_HAL_Driver/Src \
+Drivers/TMP102 \
+FATFS/App \
+FATFS/Target \
+Middlewares/ST/STM32_USB_Device_Library/Class/MSC/Src \
+Middlewares/ST/STM32_USB_Device_Library/Core/Src \
 Middlewares/ST/STM32_WPAN/ble/core/auto \
 Middlewares/ST/STM32_WPAN/ble/core/template \
 Middlewares/ST/STM32_WPAN/ble/svc/Src \
 Middlewares/ST/STM32_WPAN/interface/patterns/ble_thread/shci \
 Middlewares/ST/STM32_WPAN/interface/patterns/ble_thread/tl \
 Middlewares/ST/STM32_WPAN/utilities \
+Middlewares/Third_Party/FatFs/src \
+Middlewares/Third_Party/FatFs/src/option \
 STM32_WPAN/App \
 STM32_WPAN/Target \
+USB_Device/App \
+USB_Device/Target \
 Utilities/lpm/tiny_lpm \
 Utilities/sequencer \
 

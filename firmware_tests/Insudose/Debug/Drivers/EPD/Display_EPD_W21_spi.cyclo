@@ -1,0 +1,5 @@
+../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_bus.h:539:22:LL_AHB2_GRP1_EnableClock	1
+../Drivers/EPD/Display_EPD_W21_spi.c:4:6:EPD_GPIO_Init	1
+../Drivers/EPD/Display_EPD_W21_spi.c:45:6:SPI_Write	3
+../Drivers/EPD/Display_EPD_W21_spi.c:62:6:EPD_W21_WriteCMD	1
+../Drivers/EPD/Display_EPD_W21_spi.c:70:6:EPD_W21_WriteDATA	1

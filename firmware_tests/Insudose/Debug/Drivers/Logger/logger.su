@@ -1,0 +1,11 @@
+../Drivers/Logger/logger.c:6:6:logger_set_usb_active	16	static
+../Drivers/Logger/logger.c:17:6:init_ramdisk	24	static
+../Drivers/Logger/logger.c:42:6:append_log_rotating	728	static
+../Drivers/Logger/logger.c:130:17:crc32_update	40	static
+../Drivers/Logger/logger.c:152:17:find_erase_block_start	48	static
+../Drivers/Logger/logger.c:176:13:flash_erase_pages	40	static
+../Drivers/Logger/logger.c:195:13:flash_program_bytes	40	static
+../Drivers/Logger/logger.c:216:6:logger_persist_ramdisk_to_flash	56	static
+../Drivers/Logger/logger.c:244:6:logger_restore_ramdisk_from_flash	48	static
+../Drivers/Logger/logger.c:271:6:logger_ramdisk_is_empty	16	static
+../Drivers/Logger/logger.c:281:6:logger_invalidate_ramdisk	4	static

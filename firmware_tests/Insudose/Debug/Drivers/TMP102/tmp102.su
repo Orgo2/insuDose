@@ -1,0 +1,2 @@
+../Drivers/TMP102/tmp102.c:4:19:TMP102_Init	16	static
+../Drivers/TMP102/tmp102.c:12:19:TMP102_ReadTemperature	40	static

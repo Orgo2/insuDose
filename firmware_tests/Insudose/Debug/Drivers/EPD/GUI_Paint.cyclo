@@ -1,0 +1,17 @@
+../Drivers/EPD/GUI_Paint.c:18:6:Paint_NewImage	4
+../Drivers/EPD/GUI_Paint.c:48:6:Paint_SelectImage	1
+../Drivers/EPD/GUI_Paint.c:58:6:Paint_SetRotate	5
+../Drivers/EPD/GUI_Paint.c:73:6:Paint_SetMirroring	5
+../Drivers/EPD/GUI_Paint.c:92:6:Paint_SetPixel	16
+../Drivers/EPD/GUI_Paint.c:160:6:Paint_Clear	3
+../Drivers/EPD/GUI_Paint.c:180:6:Paint_ClearWindows	3
+../Drivers/EPD/GUI_Paint.c:198:6:Paint_DrawPoint	10
+../Drivers/EPD/GUI_Paint.c:234:6:Paint_DrawLine	13
+../Drivers/EPD/GUI_Paint.c:295:6:Paint_DrawRectangle	7
+../Drivers/EPD/GUI_Paint.c:327:6:Paint_DrawCircle	9
+../Drivers/EPD/GUI_Paint.c:395:6:Paint_DrawChar	10
+../Drivers/EPD/GUI_Paint.c:446:6:Paint_DrawString_EN	6
+../Drivers/EPD/GUI_Paint.c:491:6:Paint_DrawString_CN	22
+../Drivers/EPD/GUI_Paint.c:586:6:Paint_DrawNum	5
+../Drivers/EPD/GUI_Paint.c:626:6:Paint_DrawTime	1
+../Drivers/EPD/GUI_Paint.c:652:6:Paint_DrawBitMap	3

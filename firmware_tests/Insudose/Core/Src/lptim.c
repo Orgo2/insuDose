@@ -113,12 +113,12 @@ void HAL_LPTIM_MspInit(LPTIM_HandleTypeDef* lptimHandle)
     /**LPTIM1 GPIO Configuration
     PB2     ------> LPTIM1_OUT
     */
-    GPIO_InitStruct.Pin = GPIO_PIN_2;
+    GPIO_InitStruct.Pin = BUZZ_Pin;
     GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
     GPIO_InitStruct.Pull = GPIO_NOPULL;
     GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
     GPIO_InitStruct.Alternate = GPIO_AF1_LPTIM1;
-    HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+    HAL_GPIO_Init(BUZZ_GPIO_Port, &GPIO_InitStruct);
 
   /* USER CODE BEGIN LPTIM1_MspInit 1 */
 
@@ -165,7 +165,7 @@ void HAL_LPTIM_MspDeInit(LPTIM_HandleTypeDef* lptimHandle)
     /**LPTIM1 GPIO Configuration
     PB2     ------> LPTIM1_OUT
     */
-    HAL_GPIO_DeInit(GPIOB, GPIO_PIN_2);
+    HAL_GPIO_DeInit(BUZZ_GPIO_Port, BUZZ_Pin);
 
   /* USER CODE BEGIN LPTIM1_MspDeInit 1 */
 

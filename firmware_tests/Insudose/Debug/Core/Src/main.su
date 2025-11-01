@@ -1,9 +1,9 @@
 ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_rcc.h:1679:22:LL_RCC_LSE_SetDriveCapability	16	static
 ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_bus.h:597:22:LL_AHB2_GRP1_DisableClock	16	static
-../Core/Src/main.c:94:5:main	24	static
-../Core/Src/main.c:241:6:SystemClock_Config	112	static
-../Core/Src/main.c:301:6:PeriphCommonClock_Config	88	static
-../Core/Src/main.c:323:6:PlayBeep	24	static
-../Core/Src/main.c:337:6:JumpToBootloader	24	static,ignoring_inline_asm
-../Core/Src/main.c:387:6:RTC_SetBuildTime	152	static
-../Core/Src/main.c:467:6:Error_Handler	4	static,ignoring_inline_asm
+../Core/Src/main.c:97:5:main	24	static
+../Core/Src/main.c:250:6:SystemClock_Config	112	static
+../Core/Src/main.c:312:6:PeriphCommonClock_Config	88	static
+../Core/Src/main.c:342:6:PlayBeep	24	static
+../Core/Src/main.c:356:6:JumpToBootloader	24	static,ignoring_inline_asm
+../Core/Src/main.c:406:6:RTC_SetBuildTime	152	static
+../Core/Src/main.c:486:6:Error_Handler	4	static,ignoring_inline_asm
