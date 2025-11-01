@@ -1,0 +1,93 @@
+/*
+ * charger.h
+ *
+ *  Created on: Aug 14, 2025
+ *      Author: Orgo
+ */
+
+#ifndef CHARGER_CHARGER_H_
+#define CHARGER_CHARGER_H_
+#ifndef CHARGER_H
+#define CHARGER_H
+
+#include <stdint.h>
+#include <stdbool.h>
+#include "main.h"
+#pragma once
+
+
+// -------- PINY  gpio na stns01 --------
+#define CHARGER_CEN_GPIO_Port   GPIOB
+#define CHARGER_CEN_Pin         GPIO_PIN_0   // PB0 -> CEN (active-HIGH)
+#define CHARGER_CHG_GPIO_Port   GPIOA
+#define CHARGER_CHG_Pin         GPIO_PIN_10  // PA10 -> CHG (active-LOW)
+#define CHARGER_BAT_ADC_Port    GPIOA
+#define CHARGER_BAT_ADC_Pin     GPIO_PIN_1   // PA1  -> VBAT divider
+
+// -------- LOGIKA PODĽA STNS01 --------
+// CEN: active-HIGH (LOW = disable)
+#define CHARGER_CEN_ACTIVE_HIGH 1
+// CHG: active-LOW, open-drain; toggling pri fault
+#define CHARGER_CHG_ACTIVE_LOW  1
+
+// -------- STATUS KÓDY (vracia charger_get_battery_stat) --------
+#define CHARGER_STATUS_IDLE      0  // VIN off alebo CEN off (nenabíja)
+#define CHARGER_STATUS_CHARGING  1  // nabíja (CHG=LOW)
+#define CHARGER_STATUS_FULL      2  // hotovo/standby (VIN on + CEN on + CHG=HIGH)
+#define CHARGER_STATUS_FAULT     3  // chyba (CHG toggling ~1 Hz)
+
+// -------- ADC (VOLITEĽNÉ) --------
+// Zapni len ak máš nakonfigurovaný hadc1 v .ioc
+#ifndef CHARGER_USE_ADC
+#define CHARGER_USE_ADC 1
+#endif
+//zapne vnutornu  ref.
+#ifndef CHARGER_USE_VREFINT
+#define CHARGER_USE_VREFINT 1
+#endif
+// PA1 ADC kanál – doplň podľa .ioc (napr. ADC_CHANNEL_6):
+ #define CHARGER_ADC_CHANNEL ADC_CHANNEL_6
+
+// Referencia ADC (mV) – nastav na reálne VDDA
+#ifndef CHARGER_VREF_MV
+#define CHARGER_VREF_MV 3100
+#endif
+
+// delič: BAT—470k—ADC—47k—GND
+#ifndef CHARGER_RTOP_OHM
+#define CHARGER_RTOP_OHM 470000
+#endif
+#ifndef CHARGER_RBOT_OHM
+#define CHARGER_RBOT_OHM 47000
+#endif
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+// NOVÁ zjednodušená API
+// Inicializácia pinov; enable_on_boot: 1 = povoliť nabíjanie po inicializácii, 0 = ponechať vypnuté
+void charger_init(uint8_t enable_on_boot);
+
+// Zapnúť/vypnúť nabíjanie (CEN pin)
+void charger_set_enabled(bool enable);
+
+// Zmeria napätie batérie cez ADC a vráti hodnotu v voltách (float). V prípade chyby vráti < 0 (napr. -1.0f).
+float charger_get_battery_u(void);
+
+// Vráti stav batérie/nabíjania: jeden z CHARGER_STATUS_* (popis vyššie).
+// Parametre:
+//  - vin_present: informácia o prítomnosti vstupného napájania (VIN)
+//  - observe_ms: ak >0, funkcia bude blokovať a sledovať toggling CHG počas observe_ms (na detekciu FAULT). Ak 0, vráti rýchly status bez blokovania.
+int charger_get_battery_stat(bool vin_present, uint32_t observe_ms);
+
+// Nižšia úroveň: vráti surové mV (int32) alebo -1 pri chybe; ponechané pre interné/legacy použitie.
+int32_t charger_read_bat(void);
+
+#ifdef __cplusplus
+}
+#endif
+#endif // CHARGER_H
+
+
+#endif /* CHARGER_CHARGER_H_ */

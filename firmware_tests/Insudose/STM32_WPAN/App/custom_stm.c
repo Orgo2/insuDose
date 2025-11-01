@@ -28,12 +28,12 @@
 
 /* Private typedef -----------------------------------------------------------*/
 typedef struct{
-  uint16_t  CustomServiceHdle;              /**< insudos service handle */
-  uint16_t  CustomCharHdle;                 /**< insudos characteristic handle */
-  /* USER CODE BEGIN Context */
+  uint16_t  CustomIdHdle;                    /**< insudos handle */
+  uint16_t  CustomIdHdle;                  /**< Insudos handle */
+/* USER CODE BEGIN Context */
   /* Place holder for Characteristic Descriptors Handle*/
 
-  /* USER CODE END Context */
+/* USER CODE END Context */
 }CustomContext_t;
 
 extern uint16_t Connection_Handle;
@@ -104,6 +104,7 @@ do {\
 }while(0)
 
 #define COPY_INSUDOS_UUID(uuid_struct)          COPY_UUID_128(uuid_struct,0x00,0x00,0x00,0x00,0xcc,0x7a,0x48,0x2a,0x98,0x4a,0x7f,0x2e,0xd5,0xb3,0xe5,0x8f)
+#define COPY_INSUDOS_UUID(uuid_struct)    COPY_UUID_128(uuid_struct,0x00,0x00,0x00,0x00,0x8e,0x22,0x45,0x41,0x9d,0x4c,0x21,0xed,0xae,0x82,0xed,0x19)
 
 /* USER CODE BEGIN PF */
 
@@ -254,7 +255,7 @@ void SVCCTL_InitCustomSvc(void)
                              (Service_UUID_t *) &uuid,
                              PRIMARY_SERVICE,
                              max_attr_record,
-                             &(CustomContext.CustomServiceHdle));
+                             &(CustomContext.CustomIdHdle));
   if (ret != BLE_STATUS_SUCCESS)
   {
     APP_DBG_MSG("  Fail   : aci_gatt_add_service command: id, error code: 0x%x \n\r", ret);
@@ -268,7 +269,7 @@ void SVCCTL_InitCustomSvc(void)
    *  Insudos
    */
   COPY_INSUDOS_UUID(uuid.Char_UUID_128);
-  ret = aci_gatt_add_char(CustomContext.CustomServiceHdle,
+  ret = aci_gatt_add_char(CustomContext.CustomIdHdle,
                           UUID_TYPE_128, &uuid,
                           SizeId,
                           CHAR_PROP_NONE,
@@ -276,7 +277,7 @@ void SVCCTL_InitCustomSvc(void)
                           GATT_NOTIFY_ATTRIBUTE_WRITE | GATT_NOTIFY_WRITE_REQ_AND_WAIT_FOR_APPL_RESP | GATT_NOTIFY_READ_REQ_AND_WAIT_FOR_APPL_RESP,
                           0x10,
                           CHAR_VALUE_LEN_CONSTANT,
-                          &(CustomContext.CustomCharHdle));
+                          &(CustomContext.CustomIdHdle));
   if (ret != BLE_STATUS_SUCCESS)
   {
     APP_DBG_MSG("  Fail   : aci_gatt_add_char command   : ID, error code: 0x%x \n\r", ret);
@@ -315,8 +316,8 @@ tBleStatus Custom_STM_App_Update_Char(Custom_STM_Char_Opcode_t CharOpcode, uint8
   {
 
     case CUSTOM_STM_ID:
-      ret = aci_gatt_update_char_value(CustomContext.CustomServiceHdle,
-                                       CustomContext.CustomCharHdle,
+      ret = aci_gatt_update_char_value(CustomContext.CustomIdHdle,
+                                       CustomContext.CustomIdHdle,
                                        0, /* charValOffset */
                                        SizeId, /* charValueLen */
                                        (uint8_t *)  pPayload);
@@ -362,8 +363,8 @@ tBleStatus Custom_STM_App_Update_Char_Variable_Length(Custom_STM_Char_Opcode_t C
   {
 
     case CUSTOM_STM_ID:
-      ret = aci_gatt_update_char_value(CustomContext.CustomServiceHdle,
-                                       CustomContext.CustomCharHdle,
+      ret = aci_gatt_update_char_value(CustomContext.CustomIdHdle,
+                                       CustomContext.CustomIdHdle,
                                        0, /* charValOffset */
                                        size, /* charValueLen */
                                        (uint8_t *)  pPayload);
@@ -412,7 +413,7 @@ tBleStatus Custom_STM_App_Update_Char_Ext(uint16_t Connection_Handle, Custom_STM
       /* USER CODE BEGIN Updated_Length_Service_1_Char_1*/
 
       /* USER CODE END Updated_Length_Service_1_Char_1*/
-      ret = Generic_STM_App_Update_Char_Ext(Connection_Handle, CustomContext.CustomServiceHdle, CustomContext.CustomCharHdle, SizeId, pPayload);
+      ret = Generic_STM_App_Update_Char_Ext(Connection_Handle, CustomContext.CustomIdHdle, CustomContext.CustomIdHdle, SizeId, pPayload);
 
       if (ret != BLE_STATUS_SUCCESS)
       {
@@ -513,3 +514,4 @@ static tBleStatus Generic_STM_App_Update_Char_Ext(uint16_t ConnectionHandle, uin
   }
   return ret;
 }
+

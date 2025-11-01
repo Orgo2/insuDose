@@ -1,0 +1,75 @@
+#include "tmp102.h"
+#include <math.h>
+
+// Inicializácia TMP102 (voliteľné, môžeš nakonfigurovať režimy ak chceš)
+HAL_StatusTypeDef TMP102_Init(I2C_HandleTypeDef *hi2c)
+{
+    // TMP102 je pripravený ihneď po napájaní.
+    // Voliteľne by si mohol nastaviť konfiguráciu, ale default je OK.
+    return HAL_OK;
+}
+
+// Čítanie teploty
+HAL_StatusTypeDef TMP102_ReadTemperature(I2C_HandleTypeDef *hi2c, float *temperature_celsius)
+{
+    uint8_t buffer[2];
+    uint8_t reg_pointer = 0x00; // Pointer na Temperature Register
+    HAL_StatusTypeDef ret;
+
+    // Nastav pointer na temperature register
+    ret = HAL_I2C_Master_Transmit(hi2c, TMP102_I2C_ADDRESS, &reg_pointer, 1, HAL_MAX_DELAY);
+    if (ret != HAL_OK) {
+        return ret;
+    }
+
+    // Prečítaj 2 bajty
+    ret = HAL_I2C_Master_Receive(hi2c, TMP102_I2C_ADDRESS, buffer, 2, HAL_MAX_DELAY);
+    if (ret != HAL_OK) {
+        return ret;
+    }
+
+
+    // Spracovanie údajov
+    uint16_t raw_temp = (buffer[0] << 4) | (buffer[1] >> 4);
+
+    // Ak je teplota záporná, rozšíriť znamienko
+    if (raw_temp & 0x800) {
+        raw_temp |= 0xF000;
+    }
+
+    // Prevod na °C
+    *temperature_celsius = raw_temp * 0.0625f;
+
+    return HAL_OK;
+}
+
+// Zapíše prahovú hodnotu T_HIGH (alarm) v °C do TMP102 senzora.
+// Poznámka: funkcia iba zapíše registr T_HIGH; správanie výstupu ALERT
+// (komparátor vs interrupt, polarita, atď.) závisí od konfiguračného registra.
+HAL_StatusTypeDef TMP102_EnableAlarm(I2C_HandleTypeDef *hi2c, float temp_celsius)
+{
+    if (hi2c == NULL) {
+        return HAL_ERROR;
+    }
+
+    // Konverzia °C na 12-bitový formát TMP102 (LSB = 0.0625 = 1/16)
+    // Použijeme zaokrúhlenie na najbližší 1/16°C.
+    int16_t temp_raw = (int16_t)roundf(temp_celsius * 16.0f);
+
+    // TMP102 používa 12-bit two's complement hodnotu umiestnenú v bitoch [15:4]
+    // Pri záporných hodnotách využijeme maskovanie na 12 bitov.
+    uint16_t raw12 = (uint16_t)temp_raw & 0x0FFF;
+
+    // Priprav bajty pre zápis: najprv pointer register (T_HIGH = 0x03), potom MSB, LSB
+    uint8_t tx[3];
+    tx[0] = TMP102_REG_T_HIGH;
+    tx[1] = (uint8_t)(raw12 >> 4);            // horných 8 bitov
+    tx[2] = (uint8_t)((raw12 & 0x0F) << 4);  // dolné 4 bity posunuté do MSB nibble
+
+    HAL_StatusTypeDef ret = HAL_I2C_Master_Transmit(hi2c, TMP102_I2C_ADDRESS, tx, 3, HAL_MAX_DELAY);
+    if (ret != HAL_OK) {
+        return ret;
+    }
+
+    return HAL_OK;
+}

@@ -36,7 +36,7 @@ static void charger_gpio_init_once(void)
     gi.Pull = GPIO_NOPULL;
     HAL_GPIO_Init(CHARGER_CHG_GPIO_Port, &gi);
 
-    // BAT ADC: analóg (bez pull) – nevadí, aj keď ADC zatiaľ nepoužívaš
+    // BAT ADC: analóg (bez pull)
     gi.Pin  = CHARGER_BAT_ADC_Pin;
     gi.Mode = GPIO_MODE_ANALOG;
     gi.Pull = GPIO_NOPULL;
