@@ -1,0 +1,10 @@
+../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_bus.h:539:22:LL_AHB2_GRP1_EnableClock	1
+../Drivers/BSP/P-NUCLEO-WB55.USBDongle/stm32wbxx_usb_dongle.c:131:10:BSP_GetVersion	1
+../Drivers/BSP/P-NUCLEO-WB55.USBDongle/stm32wbxx_usb_dongle.c:147:6:BSP_LED_Init	4
+../Drivers/BSP/P-NUCLEO-WB55.USBDongle/stm32wbxx_usb_dongle.c:173:6:BSP_LED_DeInit	1
+../Drivers/BSP/P-NUCLEO-WB55.USBDongle/stm32wbxx_usb_dongle.c:191:6:BSP_LED_On	1
+../Drivers/BSP/P-NUCLEO-WB55.USBDongle/stm32wbxx_usb_dongle.c:203:6:BSP_LED_Off	1
+../Drivers/BSP/P-NUCLEO-WB55.USBDongle/stm32wbxx_usb_dongle.c:215:6:BSP_LED_Toggle	1
+../Drivers/BSP/P-NUCLEO-WB55.USBDongle/stm32wbxx_usb_dongle.c:239:6:BSP_PB_Init	3
+../Drivers/BSP/P-NUCLEO-WB55.USBDongle/stm32wbxx_usb_dongle.c:277:6:BSP_PB_DeInit	1
+../Drivers/BSP/P-NUCLEO-WB55.USBDongle/stm32wbxx_usb_dongle.c:292:10:BSP_PB_GetState	1

@@ -1,0 +1,7 @@
+../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_bus.h:1274:22:LL_APB2_GRP1_EnableClock	1
+../Core/Src/main.c:21:5:main	4
+../Core/Src/main.c:43:6:JumpToBootloader	1
+../Core/Src/main.c:50:6:MX_TIM_Init	6
+../Core/Src/main.c:100:6:PlayBeep	1
+../Core/Src/main.c:106:6:Error_Handler	1
+../Core/Src/main.c:112:6:SystemClock_Config	3

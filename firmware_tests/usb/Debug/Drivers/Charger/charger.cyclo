@@ -1,0 +1,9 @@
+../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_bus.h:539:22:LL_AHB2_GRP1_EnableClock	1
+../Drivers/Charger/charger.c:17:13:charger_gpio_init_once	2
+../Drivers/Charger/charger.c:46:6:charger_set_enabled	1
+../Drivers/Charger/charger.c:58:6:charger_init	1
+../Drivers/Charger/charger.c:65:23:chg_is_low	1
+../Drivers/Charger/charger.c:74:5:charger_get_status_fast	4
+../Drivers/Charger/charger.c:88:5:charger_get_status_blocking	4
+../Drivers/Charger/charger.c:115:6:charger_is_charging_fast	1
+../Drivers/Charger/charger.c:120:9:charger_read_bat	7

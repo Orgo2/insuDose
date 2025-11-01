@@ -1,0 +1,7 @@
+../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_bus.h:1274:22:LL_APB2_GRP1_EnableClock	24	static
+../Core/Src/main.c:21:5:main	8	static
+../Core/Src/main.c:43:6:JumpToBootloader	16	static,ignoring_inline_asm
+../Core/Src/main.c:50:6:MX_TIM_Init	64	static
+../Core/Src/main.c:100:6:PlayBeep	16	static
+../Core/Src/main.c:106:6:Error_Handler	4	static
+../Core/Src/main.c:112:6:SystemClock_Config	112	static

@@ -1,0 +1,94 @@
+/*
+ * charger.h
+ *
+ *  Created on: Aug 14, 2025
+ *      Author: Orgo
+ */
+
+#ifndef CHARGER_CHARGER_H_
+#define CHARGER_CHARGER_H_
+#ifndef CHARGER_H
+#define CHARGER_H
+
+#include <stdint.h>
+#include <stdbool.h>
+#include "main.h"
+#pragma once
+
+
+// -------- PINY  gpio na stns01 --------
+#define CHARGER_CEN_GPIO_Port   GPIOB
+#define CHARGER_CEN_Pin         GPIO_PIN_0   // PB0 -> CEN (active-HIGH)
+#define CHARGER_CHG_GPIO_Port   GPIOA
+#define CHARGER_CHG_Pin         GPIO_PIN_10  // PA10 -> CHG (active-LOW)
+#define CHARGER_BAT_ADC_Port    GPIOA
+#define CHARGER_BAT_ADC_Pin     GPIO_PIN_1   // PA1  -> VBAT divider
+
+// -------- LOGIKA PODĽA STNS01 --------
+// CEN: active-HIGH (LOW = disable)
+#define CHARGER_CEN_ACTIVE_HIGH 1
+// CHG: active-LOW, open-drain; toggling pri fault
+#define CHARGER_CHG_ACTIVE_LOW  1
+
+// -------- STATUS KÓDY --------
+#define CHARGER_STATUS_IDLE      0  // nevie/nenabíja (VIN off alebo CEN off)
+#define CHARGER_STATUS_CHARGING  1  // nabíja (CHG = LOW)
+#define CHARGER_STATUS_FULL      2  // hotovo/standby (VIN on + CEN on + CHG=HIGH, bez togglingu)
+#define CHARGER_STATUS_FAULT     3  // chyba (CHG toggling ~1 Hz)
+
+// -------- ADC (VOLITEĽNÉ) --------
+// Zapni len ak máš nakonfigurovaný hadc1 v .ioc
+#ifndef CHARGER_USE_ADC
+#define CHARGER_USE_ADC 1
+#endif
+//zapne vnutornu  ref.
+#ifndef CHARGER_USE_VREFINT
+#define CHARGER_USE_VREFINT 1
+#endif
+// PA1 ADC kanál – doplň podľa .ioc (napr. ADC_CHANNEL_6):
+ #define CHARGER_ADC_CHANNEL ADC_CHANNEL_6
+
+// Referencia ADC (mV) – nastav na reálne VDDA
+#ifndef CHARGER_VREF_MV
+#define CHARGER_VREF_MV 3100
+#endif
+
+// delič: BAT—470k—ADC—47k—GND
+#ifndef CHARGER_RTOP_OHM
+#define CHARGER_RTOP_OHM 470000
+#endif
+#ifndef CHARGER_RBOT_OHM
+#define CHARGER_RBOT_OHM 47000
+#endif
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+// Inicializácia pinov; enable_on_boot=false = hneď zakáž nabíjanie (bezpečné default)
+void charger_init(bool enable_on_boot);
+
+// Zapnúť/vypnúť nabíjanie (len prepíše CEN)
+void charger_set_enabled(bool enable);
+
+// Rýchly status (bez blokovania a bez “fault” detekcie togglingu):
+// - vráti 1 ak CHG=LOW
+// - 2 ak VIN=true && enable=true && CHG=HIGH
+// - inak 0
+int charger_get_status_fast(bool vin_present);
+
+// Presná detekcia vrátane “fault” (pozoruje CHG toggling do observe_ms; odporúčam >=1200 ms):
+int charger_get_status_blocking(bool vin_present, uint32_t observe_ms);
+
+// Pomôcky:
+bool charger_is_charging_fast(void);     // ekvivalent (CHG=LOW ?)
+int32_t charger_read_bat(void);  // vráti -1, ak CHARGER_USE_ADC=0
+
+#ifdef __cplusplus
+}
+#endif
+#endif // CHARGER_H
+
+
+
+#endif /* CHARGER_CHARGER_H_ */

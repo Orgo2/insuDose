@@ -1,0 +1,17 @@
+../Core/EPD/GUI_Paint.c:18:6:Paint_NewImage	24	static
+../Core/EPD/GUI_Paint.c:48:6:Paint_SelectImage	16	static
+../Core/EPD/GUI_Paint.c:58:6:Paint_SetRotate	16	static
+../Core/EPD/GUI_Paint.c:73:6:Paint_SetMirroring	16	static
+../Core/EPD/GUI_Paint.c:92:6:Paint_SetPixel	32	static
+../Core/EPD/GUI_Paint.c:160:6:Paint_Clear	24	static
+../Core/EPD/GUI_Paint.c:180:6:Paint_ClearWindows	32	static
+../Core/EPD/GUI_Paint.c:198:6:Paint_DrawPoint	32	static
+../Core/EPD/GUI_Paint.c:234:6:Paint_DrawLine	64	static
+../Core/EPD/GUI_Paint.c:295:6:Paint_DrawRectangle	48	static
+../Core/EPD/GUI_Paint.c:327:6:Paint_DrawCircle	40	static
+../Core/EPD/GUI_Paint.c:395:6:Paint_DrawChar	40	static
+../Core/EPD/GUI_Paint.c:446:6:Paint_DrawString_EN	40	static
+../Core/EPD/GUI_Paint.c:491:6:Paint_DrawString_CN	56	static
+../Core/EPD/GUI_Paint.c:586:6:Paint_DrawNum	560	static
+../Core/EPD/GUI_Paint.c:626:6:Paint_DrawTime	48	static
+../Core/EPD/GUI_Paint.c:652:6:Paint_DrawBitMap	24	static

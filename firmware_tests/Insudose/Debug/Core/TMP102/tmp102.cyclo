@@ -1,0 +1,2 @@
+../Core/TMP102/tmp102.c:4:19:TMP102_Init	1
+../Core/TMP102/tmp102.c:12:19:TMP102_ReadTemperature	4
