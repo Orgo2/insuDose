@@ -1,0 +1,449 @@
+/* USER CODE BEGIN Header */
+/**
+  ******************************************************************************
+  * @file           : main.c
+  * @brief          : Main program body
+  ******************************************************************************
+  * @attention
+  *
+  * Copyright (c) 2025 STMicroelectronics.
+  * All rights reserved.
+  *
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
+  *
+  ******************************************************************************
+  */
+/* USER CODE END Header */
+/* Includes ------------------------------------------------------------------*/
+#include "main.h"
+#include "adc.h"
+#include "app_fatfs.h"
+#include "i2c.h"
+#include "ipcc.h"
+#include "lptim.h"
+#include "rf.h"
+#include "rtc.h"
+#include "sai.h"
+#include "usb_device.h"
+#include "gpio.h"
+
+/* Private includes ----------------------------------------------------------*/
+/* USER CODE BEGIN Includes */
+#include "Display_EPD_W21_spi.h"
+#include "Display_EPD_W21.h"
+#include "fonts.h"
+#include "GUI_Paint.h"
+#include <string.h>
+#include "stdio.h"
+#include "TMP102.h"
+#include "Logger.h"
+#include "charger.h"
+#include <math.h>
+
+/* bring I2C handle into scope (declared in generated i2c.c) */
+extern I2C_HandleTypeDef hi2c1;
+/* USER CODE END Includes */
+
+/* Private typedef -----------------------------------------------------------*/
+/* USER CODE BEGIN PTD */
+#define BUTTON_PIN GPIO_PIN_0
+#define BUTTON_PORT GPIOA
+#define PIEZO_PIN GPIO_PIN_2
+#define PIEZO_PORT GPIOB
+#define Butt_TIMEOUT_MS 2000
+#define BOOT_ADD 0x1FFF0000 //0x1FFF0000 stm32wb55 bootloader address
+#define BootJumpTime 3000
+
+/* USER CODE END PTD */
+
+/* Private define ------------------------------------------------------------*/
+/* USER CODE BEGIN PD */
+extern RTC_HandleTypeDef hrtc;
+//LPTIM_HandleTypeDef hlptim1;
+
+/* USER CODE END PD */
+
+/* Private macro -------------------------------------------------------------*/
+/* USER CODE BEGIN PM */
+
+/* USER CODE END PM */
+
+/* Private variables ---------------------------------------------------------*/
+
+/* USER CODE BEGIN PV */
+//static uint8_t BlackImage[EPD_WIDTH * EPD_HEIGHT / 8]; //display drawing buffer
+uint8_t dose = 0;
+float temperature = 0.0f;
+
+/* --- additions for button/logging/display handling --- */
+static volatile uint8_t dose_button_pressed = 0; // set from EXTI
+static uint32_t last_button_tick = 0; // debounce
+static uint8_t BlackImage[/* bytes */(EPD_WIDTH * EPD_HEIGHT / 8)];
+
+/* USER CODE END PV */
+
+/* Private function prototypes -----------------------------------------------*/
+void SystemClock_Config(void);
+void PeriphCommonClock_Config(void);
+/* USER CODE BEGIN PFP */
+void PlayBeep(uint32_t duration_ms);
+void JumpToBootloader(void);
+void handle_dose_event(void);
+//void RTC_SetBuildTime(void);
+//void Check_And_Log(void);
+/* USER CODE END PFP */
+
+/* Private user code ---------------------------------------------------------*/
+/* USER CODE BEGIN 0 */
+
+/* USER CODE END 0 */
+
+/**
+  * @brief  The application entry point.
+  * @retval int
+  */
+int main(void)
+{
+
+  /* USER CODE BEGIN 1 */
+
+  /* USER CODE END 1 */
+
+  /* MCU Configuration--------------------------------------------------------*/
+
+  /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
+  HAL_Init();
+  /* Config code for STM32_WPAN (HSE Tuning must be done before system clock configuration) */
+  MX_APPE_Config();
+
+  /* USER CODE BEGIN Init */
+
+  /* USER CODE END Init */
+
+  /* Configure the system clock */
+  SystemClock_Config();
+
+  /* Configure the peripherals common clocks */
+  PeriphCommonClock_Config();
+
+  /* IPCC initialisation */
+  MX_IPCC_Init();
+
+  /* USER CODE BEGIN SysInit */
+
+  /* USER CODE END SysInit */
+
+  /* Initialize all configured peripherals */
+  MX_GPIO_Init();
+  MX_LPTIM1_Init();
+  MX_RTC_Init();
+  MX_I2C1_Init();
+  MX_LPTIM2_Init();
+  MX_ADC1_Init();
+  MX_SAI1_Init();
+  if (MX_FATFS_Init() != APP_OK) {
+    Error_Handler();
+  }
+  MX_USB_Device_Init();
+  MX_RF_Init();
+  /* USER CODE BEGIN 2 */
+ // TMP102_Init(&hi2c1); //temperature sensor inicialisation
+ // EPD_GPIO_Init();              // Inicializácia GPIO pre displej
+ // EPD_HW_Init();
+ // RTC_SetBuildTime();
+
+
+  //function for mcu bootloader jump after power inicialisation
+   uint32_t buttonPressStartTime = 0;
+   uint32_t TimeoutCounter = 0;
+   uint8_t buttonHeld = 0;
+   TimeoutCounter = HAL_GetTick();
+   //till boot jump time period is gone, stay in the loop and read the button
+   while ( HAL_GetTick() - TimeoutCounter <= BootJumpTime ) {
+ 	  //read the button. if button is zero(pulldown) start the countdown
+ 	   	  if (HAL_GPIO_ReadPin(BUTTON_PORT, BUTTON_PIN) == GPIO_PIN_RESET) {
+ 	 		         if (!buttonHeld) {
+ 	 		             buttonHeld = 1;
+ 	 		             buttonPressStartTime = HAL_GetTick();
+ 	 		         //if we pass 2s debouncing play beep and jump to the bootloader
+ 	 		         } else if (HAL_GetTick() - buttonPressStartTime >= Butt_TIMEOUT_MS) {
+ 	 		             PlayBeep(1000); // pay beep for 1 sec
+ 	 		             JumpToBootloader();
+ 	 		         }
+ 	 	  }
+ 	 	  else {
+ 	 		         buttonHeld = 0; // if button was pressed shorter time release the flag
+
+ 	 	  }
+
+   }
+   ///////////usb reset////////////
+
+  // USB->CNTR = USB_CNTR_FRES;
+  // USB->CNTR = 0;
+
+
+  /* USER CODE END 2 */
+
+  /* Init code for STM32_WPAN */
+  MX_APPE_Init();
+
+  /* Infinite loop */
+  /* USER CODE BEGIN WHILE */
+  while (1)
+  {
+
+    /* USER CODE END WHILE */
+    MX_APPE_Process();
+
+    /* USER CODE BEGIN 3 */
+    /* if button pressed by EXTI, handle event */
+    if (dose_button_pressed) {
+        dose_button_pressed = 0; // clear flag asap
+        handle_dose_event();
+    }
+
+    /* Enter light sleep until next interrupt (EXTI will wake device) */
+    /* Save power between clicks as requested */
+    HAL_PWR_EnterSLEEPMode(PWR_MAINREGULATOR_ON, PWR_SLEEPENTRY_WFI);
+
+  }
+  /* USER CODE END 3 */
+}
+
+/**
+  * @brief System Clock Configuration
+  * @retval None
+  */
+void SystemClock_Config(void)
+{
+  RCC_OscInitTypeDef RCC_OscInitStruct = {0};
+  RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
+
+  /** Configure LSE Drive Capability
+  */
+  HAL_PWR_EnableBkUpAccess();
+  __HAL_RCC_LSEDRIVE_CONFIG(RCC_LSEDRIVE_MEDIUMHIGH);
+
+  /** Configure the main internal regulator output voltage
+  */
+  __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE1);
+
+  /** Initializes the RCC Oscillators according to the specified parameters
+  * in the RCC_OscInitTypeDef structure.
+  */
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI48|RCC_OSCILLATORTYPE_HSI
+                              |RCC_OSCILLATORTYPE_HSE|RCC_OSCILLATORTYPE_LSE
+                              |RCC_OSCILLATORTYPE_MSI;
+  RCC_OscInitStruct.HSEState = RCC_HSE_ON;
+  RCC_OscInitStruct.LSEState = RCC_LSE_ON;
+  RCC_OscInitStruct.HSIState = RCC_HSI_ON;
+  RCC_OscInitStruct.MSIState = RCC_MSI_ON;
+  RCC_OscInitStruct.HSI48State = RCC_HSI48_ON;
+  RCC_OscInitStruct.HSICalibrationValue = 0;
+  RCC_OscInitStruct.MSICalibrationValue = RCC_MSICALIBRATION_DEFAULT;
+  RCC_OscInitStruct.MSIClockRange = RCC_MSIRANGE_6;
+  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
+  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_MSI;
+  RCC_OscInitStruct.PLL.PLLM = RCC_PLLM_DIV1;
+  RCC_OscInitStruct.PLL.PLLN = 32;
+  RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
+  RCC_OscInitStruct.PLL.PLLR = RCC_PLLR_DIV2;
+  RCC_OscInitStruct.PLL.PLLQ = RCC_PLLQ_DIV3;
+  if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /** Configure the SYSCLKSource, HCLK, PCLK1 and PCLK2 clocks dividers
+  */
+  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK4|RCC_CLOCKTYPE_HCLK2
+                              |RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
+                              |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
+  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
+  RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV2;
+  RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV8;
+  RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
+  RCC_ClkInitStruct.AHBCLK2Divider = RCC_SYSCLK_DIV2;
+  RCC_ClkInitStruct.AHBCLK4Divider = RCC_SYSCLK_DIV1;
+
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_3) != HAL_OK)
+  {
+    Error_Handler();
+  }
+}
+
+/**
+  * @brief Peripherals Common Clock Configuration
+  * @retval None
+  */
+void PeriphCommonClock_Config(void)
+{
+  RCC_PeriphCLKInitTypeDef PeriphClkInitStruct = {0};
+
+  /** Initializes the peripherals clock
+  */
+  PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_SMPS|RCC_PERIPHCLK_RFWAKEUP
+                              |RCC_PERIPHCLK_SAI1|RCC_PERIPHCLK_ADC;
+  PeriphClkInitStruct.PLLSAI1.PLLN = 24;
+  PeriphClkInitStruct.PLLSAI1.PLLP = RCC_PLLP_DIV2;
+  PeriphClkInitStruct.PLLSAI1.PLLQ = RCC_PLLQ_DIV2;
+  PeriphClkInitStruct.PLLSAI1.PLLR = RCC_PLLR_DIV2;
+  PeriphClkInitStruct.PLLSAI1.PLLSAI1ClockOut = RCC_PLLSAI1_SAI1CLK|RCC_PLLSAI1_ADCCLK;
+  PeriphClkInitStruct.Sai1ClockSelection = RCC_SAI1CLKSOURCE_PLLSAI1;
+  PeriphClkInitStruct.AdcClockSelection = RCC_ADCCLKSOURCE_PLLSAI1;
+  PeriphClkInitStruct.RFWakeUpClockSelection = RCC_RFWKPCLKSOURCE_LSE;
+  PeriphClkInitStruct.SmpsClockSelection = RCC_SMPSCLKSOURCE_HSI;
+  PeriphClkInitStruct.SmpsDivSelection = RCC_SMPSCLKDIV_RANGE1;
+
+  if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInitStruct) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN Smps */
+
+  /* USER CODE END Smps */
+}
+
+/* USER CODE BEGIN 4 */
+/////////////////this function generates acoustic signal on mcu GPIO pin via LPTIM//////////////////////
+void PlayBeep(uint32_t duration_ms) {
+	uint32_t period = 999;  // 1 kHz (f=clk 4MHz/999)
+	uint32_t pulse = 500;   // 50% duty cycle (D=pulse/period)
+	// Spusti časovač na generovanie PWM
+    HAL_LPTIM_PWM_Start(&hlptim1, period, pulse);
+
+    // Čakaj, kým uplynie trvanie zvuku
+    HAL_Delay(duration_ms);
+
+    // Zastav časovač
+    HAL_LPTIM_PWM_Stop(&hlptim1);
+}
+
+////////////////////this function releases all peripherials and jumps into bootloader/////////////////////////
+void JumpToBootloader(void) {
+
+
+    // Interupt disable
+    __disable_irq();
+
+    // Reset USB
+    USB->CNTR = 0x0003;
+
+    // Pheripherial reset
+    __HAL_RCC_GPIOC_CLK_DISABLE();
+    __HAL_RCC_GPIOB_CLK_DISABLE();
+    __HAL_RCC_GPIOA_CLK_DISABLE();
+
+    HAL_LPTIM_DeInit(&hlptim1);
+    HAL_RCC_DeInit();
+
+    // systick reset
+    SysTick->CTRL = 0;
+    SysTick->LOAD = 0;
+    SysTick->VAL = 0;
+    // Clear all interrupt bits
+      for (uint8_t i = 0; i < sizeof(NVIC->ICER) / sizeof(NVIC->ICER[0]); i++)
+      {
+        NVIC->ICER[i] = 0xFFFFFFFF;
+        NVIC->ICPR[i] = 0xFFFFFFFF;
+      }
+
+      /* Re-enable all interrupts */
+      __enable_irq();
+
+      /* Set up the jump to boot loader address + 4 */
+      uint32_t jump_address = *(__IO uint32_t *)(BOOT_ADD + 4);
+
+      /* Set the main stack pointer to the boot loader stack */
+      __set_MSP(*(uint32_t *)BOOT_ADD);
+
+      /* Call the function to jump to boot loader location */
+      void (*boot_load)(void) = (void (*)(void))(jump_address);
+
+      //remap memory
+      SYSCFG->MEMRMP = 0x01;
+
+      // Now jump to the boot loader
+      boot_load();
+      /* Jump is done successfully */
+}
+///////////////////end of bootloader function////////////////////////
+
+/////////////////set build time function//////////////////////
+void RTC_SetBuildTime(void) {
+    RTC_TimeTypeDef sTime = {0};
+    RTC_DateTypeDef sDate = {0};
+
+    // Parse __DATE__ "Apr 28 2025"
+    char build_date[] = __DATE__;
+    char build_time[] = __TIME__;
+
+    // Mesiace
+    const char *months[] = {
+        "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+        "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+    };
+
+    int month = 0;
+    for (int i = 0; i < 12; i++) {
+        if (strncmp(build_date, months[i], 3) == 0) {
+            month = i + 1;
+            break;
+        }
+    }
+
+    int day, year, hour, minute, second;
+    sscanf(build_date + 4, "%d %d", &day, &year);
+    sscanf(build_time, "%d:%d:%d", &hour, &minute, &second);
+
+    sDate.Year = year % 100; // RTC chce len posledné 2 číslice
+    sDate.Month = month;
+    sDate.Date = day;
+    sDate.WeekDay = 1; // Ignorujeme, HAL to nastaví sám
+
+    sTime.Hours = hour;
+    sTime.Minutes = minute;
+    sTime.Seconds = second;
+    sTime.DayLightSaving = RTC_DAYLIGHTSAVING_NONE;
+    sTime.StoreOperation = RTC_STOREOPERATION_RESET;
+
+    HAL_RTC_SetTime(&hrtc, &sTime, RTC_FORMAT_BIN);
+    HAL_RTC_SetDate(&hrtc, &sDate, RTC_FORMAT_BIN);
+}
+///////////////////end of buildtime function////////////////////////
+
+/* USER CODE END 4 */
+
+/**
+  * @brief  This function is executed in case of error occurrence.
+  * @retval None
+  */
+void Error_Handler(void)
+{
+  /* USER CODE BEGIN Error_Handler_Debug */
+  /* User can add his own implementation to report the HAL error return state */
+  __disable_irq();
+  while (1)
+  {
+  }
+  /* USER CODE END Error_Handler_Debug */
+}
+#ifdef USE_FULL_ASSERT
+/**
+  * @brief  Reports the name of the source file and the source line number
+  *         where the assert_param error has occurred.
+  * @param  file: pointer to the source file name
+  * @param  line: assert_param error line source number
+  * @retval None
+  */
+void assert_failed(uint8_t *file, uint32_t line)
+{
+  /* USER CODE BEGIN 6 */
+  /* User can add his own implementation to report the file name and line number,
+     ex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */
+  /* USER CODE END 6 */
+}
+#endif /* USE_FULL_ASSERT */

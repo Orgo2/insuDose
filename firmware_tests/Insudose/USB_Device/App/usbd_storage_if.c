@@ -19,7 +19,9 @@
 /* USER CODE END Header */
 
 /* Includes ------------------------------------------------------------------*/
+#include <string.h>
 #include "usbd_storage_if.h"
+#include "logger.h"
 
 /* USER CODE BEGIN INCLUDE */
 
@@ -63,8 +65,10 @@
   */
 
 #define STORAGE_LUN_NBR                  1
-#define STORAGE_BLK_NBR                  0x10000
-#define STORAGE_BLK_SIZ                  0x200
+#undef STORAGE_BLK_NBR
+#undef STORAGE_BLK_SIZ
+#define STORAGE_BLK_NBR NUM_SECTORS
+#define STORAGE_BLK_SIZ SECTOR_SIZE
 
 /* USER CODE BEGIN PRIVATE_DEFINES */
 
@@ -176,9 +180,8 @@ USBD_StorageTypeDef USBD_Storage_Interface_fops_FS =
   */
 int8_t STORAGE_Init_FS(uint8_t lun)
 {
-  /* USER CODE BEGIN 2 */
+  (void)lun;
   return (USBD_OK);
-  /* USER CODE END 2 */
 }
 
 /**
@@ -190,11 +193,10 @@ int8_t STORAGE_Init_FS(uint8_t lun)
   */
 int8_t STORAGE_GetCapacity_FS(uint8_t lun, uint32_t *block_num, uint16_t *block_size)
 {
-  /* USER CODE BEGIN 3 */
+  (void)lun;
   *block_num  = STORAGE_BLK_NBR;
   *block_size = STORAGE_BLK_SIZ;
   return (USBD_OK);
-  /* USER CODE END 3 */
 }
 
 /**
@@ -204,9 +206,8 @@ int8_t STORAGE_GetCapacity_FS(uint8_t lun, uint32_t *block_num, uint16_t *block_
   */
 int8_t STORAGE_IsReady_FS(uint8_t lun)
 {
-  /* USER CODE BEGIN 4 */
+  (void)lun;
   return (USBD_OK);
-  /* USER CODE END 4 */
 }
 
 /**
@@ -216,9 +217,8 @@ int8_t STORAGE_IsReady_FS(uint8_t lun)
   */
 int8_t STORAGE_IsWriteProtected_FS(uint8_t lun)
 {
-  /* USER CODE BEGIN 5 */
+  (void)lun;
   return (USBD_OK);
-  /* USER CODE END 5 */
 }
 
 /**
@@ -228,9 +228,10 @@ int8_t STORAGE_IsWriteProtected_FS(uint8_t lun)
   */
 int8_t STORAGE_Read_FS(uint8_t lun, uint8_t *buf, uint32_t blk_addr, uint16_t blk_len)
 {
-  /* USER CODE BEGIN 6 */
+  (void)lun;
+  if ((blk_addr + blk_len) > STORAGE_BLK_NBR) return USBD_FAIL;
+  memcpy(buf, &ram_disk[blk_addr * STORAGE_BLK_SIZ], (size_t)blk_len * STORAGE_BLK_SIZ);
   return (USBD_OK);
-  /* USER CODE END 6 */
 }
 
 /**
@@ -240,9 +241,10 @@ int8_t STORAGE_Read_FS(uint8_t lun, uint8_t *buf, uint32_t blk_addr, uint16_t bl
   */
 int8_t STORAGE_Write_FS(uint8_t lun, uint8_t *buf, uint32_t blk_addr, uint16_t blk_len)
 {
-  /* USER CODE BEGIN 7 */
+  (void)lun;
+  if ((blk_addr + blk_len) > STORAGE_BLK_NBR) return USBD_FAIL;
+  memcpy(&ram_disk[blk_addr * STORAGE_BLK_SIZ], buf, (size_t)blk_len * STORAGE_BLK_SIZ);
   return (USBD_OK);
-  /* USER CODE END 7 */
 }
 
 /**
@@ -268,4 +270,3 @@ int8_t STORAGE_GetMaxLun_FS(void)
 /**
   * @}
   */
-

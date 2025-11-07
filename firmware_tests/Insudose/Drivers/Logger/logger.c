@@ -10,7 +10,7 @@ static bool s_wrapped = false;
 
 uint32_t log_offset = 0; //definuje ukazovatel na roundrobin
 extern void PlayBeep(uint32_t duration_ms);
-//uint8_t ram_disk[SECTOR_SIZE * NUM_SECTORS];
+uint8_t ram_disk[SECTOR_SIZE * NUM_SECTORS] = {0};
 
 
 //////////////init ramdisk/////////////////

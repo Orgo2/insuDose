@@ -1,4 +1,5 @@
 #include "tmp102.h"
+#include "gpio.h"
 #include <math.h>
 
 // Helper: convert Celsius to TMP102 12-bit register bytes (MSB, LSB)
@@ -10,9 +11,36 @@ static void tmp102_conv_temp_to_bytes(float temp_c, uint8_t *out_msb, uint8_t *o
     *out_lsb = (uint8_t)((raw12 & 0x0F) << 4);
 }
 
+// Enable internal pull-ups on I2C1 pins to ensure stable bus when TMP102 is powered
+static void TMP102_EnableBusPullups(I2C_HandleTypeDef *hi2c)
+{
+    if (!hi2c || hi2c->Instance != I2C1) return;
+    GPIO_InitTypeDef GPIO_InitStruct = {0};
+    __HAL_RCC_GPIOB_CLK_ENABLE();
+    GPIO_InitStruct.Pin = GPIO_PIN_8 | GPIO_PIN_9; // SCL / SDA
+    GPIO_InitStruct.Mode = GPIO_MODE_AF_OD;
+    GPIO_InitStruct.Pull = GPIO_PULLUP;           // INTERNAL PULLUPS ENABLED
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+    GPIO_InitStruct.Alternate = GPIO_AF4_I2C1;
+    HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+}
+
+// Optionally disable (set to analog no-pull) for lowest leakage when sensor off
+static void TMP102_DisableBusPullups(I2C_HandleTypeDef *hi2c)
+{
+    if (!hi2c || hi2c->Instance != I2C1) return;
+    GPIO_InitTypeDef GPIO_InitStruct = {0};
+    GPIO_InitStruct.Pin = GPIO_PIN_8 | GPIO_PIN_9;
+    GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
+    GPIO_InitStruct.Pull = GPIO_NOPULL;
+    HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+}
+
 // Inicializácia TMP102 (voliteľné, môžeš nakonfigurovať režimy ak chceš)
 HAL_StatusTypeDef TMP102_Init(I2C_HandleTypeDef *hi2c)
 {
+	// Ensure internal pull-ups are ON for I2C pins while sensor is active
+    TMP102_EnableBusPullups(hi2c);
 	// 1) Zapni napájanie senzora cez definovaný pin PW_TMP
 	HAL_GPIO_WritePin(PW_TMP_GPIO_Port, PW_TMP_Pin, GPIO_PIN_SET);
 
@@ -26,11 +54,11 @@ HAL_StatusTypeDef TMP102_Init(I2C_HandleTypeDef *hi2c)
 //deinicializacia(vypnutie) TMP102 senzora
 void TMP102_Deinit()
 {
-	// 1) Zapni napájanie senzora cez definovaný pin PW_TMP
 	HAL_GPIO_WritePin(PW_TMP_GPIO_Port, PW_TMP_Pin, GPIO_PIN_RESET);
-	// cakaj kym sa senzor uplne vypne aby nerobil problemy na linke
 	HAL_Delay(100);
-
+	// Optional: leave pull-ups enabled if other I2C devices share bus.
+	// If you want to remove them for deep sleep, uncomment next line and pass &hi2c1.
+	// TMP102_DisableBusPullups(&hi2c1);
 }
 
 // Čítanie teploty

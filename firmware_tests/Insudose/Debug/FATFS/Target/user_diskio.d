@@ -65,7 +65,10 @@ FATFS/Target/user_diskio.o: ../FATFS/Target/user_diskio.c \
  ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_gpio.h \
  ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_rtc.h \
  ../Middlewares/ST/STM32_WPAN/ble/core/ble_bufsize.h \
- ../Core/Inc/app_entry.h ../Core/Inc/app_common.h
+ ../Core/Inc/app_entry.h ../Core/Inc/app_common.h \
+ C:/Users/orgo/Documents/Rado/git/insuDose/firmware_tests/Insudose/Drivers/Logger/logger.h \
+ ../FATFS/App/app_fatfs.h ../Middlewares/Third_Party/FatFs/src/ff.h \
+ ../FATFS/Target/user_diskio.h
 ../Middlewares/Third_Party/FatFs/src/ff_gen_drv.h:
 ../Middlewares/Third_Party/FatFs/src/diskio.h:
 ../Middlewares/Third_Party/FatFs/src/integer.h:
@@ -137,3 +140,7 @@ FATFS/Target/user_diskio.o: ../FATFS/Target/user_diskio.c \
 ../Middlewares/ST/STM32_WPAN/ble/core/ble_bufsize.h:
 ../Core/Inc/app_entry.h:
 ../Core/Inc/app_common.h:
+C:/Users/orgo/Documents/Rado/git/insuDose/firmware_tests/Insudose/Drivers/Logger/logger.h:
+../FATFS/App/app_fatfs.h:
+../Middlewares/Third_Party/FatFs/src/ff.h:
+../FATFS/Target/user_diskio.h:

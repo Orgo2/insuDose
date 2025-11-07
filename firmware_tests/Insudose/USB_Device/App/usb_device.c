@@ -32,7 +32,10 @@
 
 /* USER CODE BEGIN PV */
 /* Private variables ---------------------------------------------------------*/
+USBD_HandleTypeDef hUsbDeviceFS;
+extern USBD_DescriptorsTypeDef MSC_Desc;
 
+static uint8_t s_usb_initialized = 0;
 /* USER CODE END PV */
 
 /* USER CODE BEGIN PFP */
@@ -41,23 +44,6 @@
 /* USER CODE END PFP */
 
 extern void Error_Handler(void);
-/* USB Device Core handle declaration. */
-USBD_HandleTypeDef hUsbDeviceFS;
-extern USBD_DescriptorsTypeDef MSC_Desc;
-
-/*
- * -- Insert your variables declaration here --
- */
-/* USER CODE BEGIN 0 */
-
-/* USER CODE END 0 */
-
-/*
- * -- Insert your external function declaration here --
- */
-/* USER CODE BEGIN 1 */
-
-/* USER CODE END 1 */
 
 /**
   * Init USB device Library, add supported class and start the library
@@ -82,16 +68,33 @@ void MX_USB_Device_Init(void)
   if (USBD_Start(&hUsbDeviceFS) != USBD_OK) {
     Error_Handler();
   }
+  s_usb_initialized = 1;
   /* USER CODE BEGIN USB_Device_Init_PostTreatment */
 
   /* USER CODE END USB_Device_Init_PostTreatment */
 }
 
-/**
-  * @}
-  */
+/* USER CODE BEGIN FD */
+void USB_Device_Start(void)
+{
+  if (!s_usb_initialized) {
+    MX_USB_Device_Init();
+    return;
+  }
+  (void)USBD_Start(&hUsbDeviceFS);
+}
+
+void USB_Device_Stop(void)
+{
+  if (!s_usb_initialized) return;
+  (void)USBD_Stop(&hUsbDeviceFS);
+}
+/* USER CODE END FD */
 
 /**
   * @}
   */
 
+/**
+  * @}
+  */

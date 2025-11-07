@@ -1,5 +1,8 @@
-../Drivers/TMP102/tmp102.c:5:13:tmp102_conv_temp_to_bytes	1
-../Drivers/TMP102/tmp102.c:14:19:TMP102_Init	1
-../Drivers/TMP102/tmp102.c:27:6:TMP102_Deinit	1
-../Drivers/TMP102/tmp102.c:37:19:TMP102_ReadTemperature	4
-../Drivers/TMP102/tmp102.c:75:19:TMP102_SetAlarm	12
+../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_bus.h:539:22:LL_AHB2_GRP1_EnableClock	1
+../Drivers/TMP102/tmp102.c:6:13:tmp102_conv_temp_to_bytes	1
+../Drivers/TMP102/tmp102.c:15:13:TMP102_EnableBusPullups	3
+../Drivers/TMP102/tmp102.c:29:13:TMP102_DisableBusPullups	3
+../Drivers/TMP102/tmp102.c:40:19:TMP102_Init	1
+../Drivers/TMP102/tmp102.c:55:6:TMP102_Deinit	1
+../Drivers/TMP102/tmp102.c:65:19:TMP102_ReadTemperature	4
+../Drivers/TMP102/tmp102.c:103:19:TMP102_SetAlarm	12

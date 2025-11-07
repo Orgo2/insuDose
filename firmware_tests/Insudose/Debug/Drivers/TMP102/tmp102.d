@@ -62,7 +62,8 @@ Drivers/TMP102/tmp102.o: ../Drivers/TMP102/tmp102.c \
  ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_gpio.h \
  ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_rtc.h \
  ../Middlewares/ST/STM32_WPAN/ble/core/ble_bufsize.h \
- ../Core/Inc/app_entry.h ../Core/Inc/app_common.h
+ ../Core/Inc/app_entry.h ../Core/Inc/app_common.h ../Core/Inc/gpio.h \
+ ../Core/Inc/main.h
 ../Drivers/TMP102/tmp102.h:
 ../Core/Inc/main.h:
 ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal.h:
@@ -130,3 +131,5 @@ Drivers/TMP102/tmp102.o: ../Drivers/TMP102/tmp102.c \
 ../Middlewares/ST/STM32_WPAN/ble/core/ble_bufsize.h:
 ../Core/Inc/app_entry.h:
 ../Core/Inc/app_common.h:
+../Core/Inc/gpio.h:
+../Core/Inc/main.h:

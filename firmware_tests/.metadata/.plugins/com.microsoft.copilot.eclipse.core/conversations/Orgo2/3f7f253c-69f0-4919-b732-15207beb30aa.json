@@ -1,0 +1,28 @@
+{
+  "conversationId": "3f7f253c-69f0-4919-b732-15207beb30aa",
+  "title": "kod po upravach zbehne ale vypise zariadenie neroz...",
+  "requesterUsername": "Orgo2",
+  "responderUsername": "GitHub Copilot",
+  "turns": [
+    {
+      "message": {
+        "text": "kod po upravach zbehne ale vypise zariadenie nerozpoznane. Ked podrzim enter 5s zariadenie skoci do bootloadera, vyzera teda ze msc cast ma problem. vedel by si pozriet kde? "
+      },
+      "currentDocument": {
+        "uri": "/Insudose/Core/Src/main.c"
+      },
+      "references": [],
+      "ignoredSkills": [],
+      "userLanguage": "en",
+      "source": "panel",
+      "model": "GPT-5",
+      "chatMode": "Agent",
+      "needToolCallConfirmation": true,
+      "turnId": "a6e1d23b-4cae-435e-acf6-66aa636269a2",
+      "role": "user",
+      "timestamp": "2025-11-07T16:07:19.225561100Z"
+    }
+  ],
+  "creationDate": "2025-11-07T16:07:19.224561600Z",
+  "lastMessageDate": "2025-11-07T16:07:19.224561600Z"
+}

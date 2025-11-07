@@ -2,7 +2,7 @@
 /**
  ******************************************************************************
   * @file    user_diskio.c
-  * @brief   This file includes a diskio driver skeleton to be completed by the user.
+  * @brief   This file implements a RAM disk driver for FatFs.
   ******************************************************************************
   * @attention
   *
@@ -15,35 +15,15 @@
   *
   ******************************************************************************
   */
- /* USER CODE END Header */
-
-#ifdef USE_OBSOLETE_USER_CODE_SECTION_0
-/*
- * Warning: the user section 0 is no more in use (starting from CubeMx version 4.16.0)
- * To be suppressed in the future.
- * Kept to ensure backward compatibility with previous CubeMx versions when
- * migrating projects.
- * User code previously added there should be copied in the new user sections before
- * the section contents can be deleted.
- */
-/* USER CODE BEGIN 0 */
-/* USER CODE END 0 */
-#endif
-
-/* USER CODE BEGIN DECL */
+/* USER CODE END Header */
 
 /* Includes ------------------------------------------------------------------*/
 #include <string.h>
 #include "ff_gen_drv.h"
-
-/* Private typedef -----------------------------------------------------------*/
-/* Private define ------------------------------------------------------------*/
+#include "logger.h"  // provides ram_disk, SECTOR_SIZE, NUM_SECTORS
 
 /* Private variables ---------------------------------------------------------*/
-/* Disk status */
-static volatile DSTATUS Stat = STA_NOINIT;
-
-/* USER CODE END DECL */
+static volatile DSTATUS Stat = 0; /* Disk status: 0 = OK */
 
 /* Private function prototypes -----------------------------------------------*/
 DSTATUS USER_initialize (BYTE pdrv);
@@ -80,10 +60,9 @@ DSTATUS USER_initialize (
 	BYTE pdrv           /* Physical drive nmuber to identify the drive */
 )
 {
-  /* USER CODE BEGIN INIT */
-    Stat = STA_NOINIT;
-    return Stat;
-  /* USER CODE END INIT */
+  (void)pdrv;
+  Stat = 0; /* ready */
+  return Stat;
 }
 
 /**
@@ -95,10 +74,8 @@ DSTATUS USER_status (
 	BYTE pdrv       /* Physical drive number to identify the drive */
 )
 {
-  /* USER CODE BEGIN STATUS */
-    Stat = STA_NOINIT;
-    return Stat;
-  /* USER CODE END STATUS */
+  (void)pdrv;
+  return Stat; /* always ready */
 }
 
 /**
@@ -116,11 +93,15 @@ DRESULT USER_read (
 	UINT count      /* Number of sectors to read */
 )
 {
-  /* USER CODE BEGIN READ */
-    return RES_OK;
-  /* USER CODE END READ */
+  (void)pdrv;
+  if ((sector + count) > NUM_SECTORS) {
+    return RES_PARERR;
+  }
+  memcpy(buff, &ram_disk[sector * SECTOR_SIZE], (size_t)count * SECTOR_SIZE);
+  return RES_OK;
 }
 
+#if _USE_WRITE == 1
 /**
   * @brief  Writes Sector(s)
   * @param  pdrv: Physical drive number (0..)
@@ -129,7 +110,6 @@ DRESULT USER_read (
   * @param  count: Number of sectors to write (1..128)
   * @retval DRESULT: Operation result
   */
-#if _USE_WRITE == 1
 DRESULT USER_write (
 	BYTE pdrv,          /* Physical drive nmuber to identify the drive */
 	const BYTE *buff,   /* Data to be written */
@@ -137,10 +117,12 @@ DRESULT USER_write (
 	UINT count          /* Number of sectors to write */
 )
 {
-  /* USER CODE BEGIN WRITE */
-  /* USER CODE HERE */
-    return RES_OK;
-  /* USER CODE END WRITE */
+  (void)pdrv;
+  if ((sector + count) > NUM_SECTORS) {
+    return RES_PARERR;
+  }
+  memcpy(&ram_disk[sector * SECTOR_SIZE], buff, (size_t)count * SECTOR_SIZE);
+  return RES_OK;
 }
 #endif /* _USE_WRITE == 1 */
 
@@ -158,10 +140,21 @@ DRESULT USER_ioctl (
 	void *buff      /* Buffer to send/receive control data */
 )
 {
-  /* USER CODE BEGIN IOCTL */
-    DRESULT res = RES_ERROR;
-    return res;
-  /* USER CODE END IOCTL */
+  (void)pdrv;
+  switch (cmd) {
+    case CTRL_SYNC:
+      return RES_OK;
+    case GET_SECTOR_COUNT:
+      *(DWORD*)buff = NUM_SECTORS;
+      return RES_OK;
+    case GET_SECTOR_SIZE:
+      *(WORD*)buff = SECTOR_SIZE;
+      return RES_OK;
+    case GET_BLOCK_SIZE:
+      *(DWORD*)buff = 1; /* erase block size in sectors (not applicable) */
+      return RES_OK;
+    default:
+      return RES_PARERR;
+  }
 }
 #endif /* _USE_IOCTL == 1 */
-

@@ -77,11 +77,10 @@
 /** USB Device initialization function. */
 void MX_USB_Device_Init(void);
 
-/*
- * -- Insert functions declaration here --
- */
 /* USER CODE BEGIN FD */
-
+/* On-demand USB control */
+void USB_Device_Start(void);
+void USB_Device_Stop(void);
 /* USER CODE END FD */
 /**
   * @}
@@ -100,4 +99,3 @@ void MX_USB_Device_Init(void);
 #endif
 
 #endif /* __USB_DEVICE__H__ */
-

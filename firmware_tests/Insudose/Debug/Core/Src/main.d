@@ -78,8 +78,8 @@ Core/Src/main.o: ../Core/Src/main.c ../Core/Inc/main.h \
  C:/Users/orgo/Documents/Rado/git/insuDose/firmware_tests/Insudose/Drivers/EPD/fonts.h \
  C:/Users/orgo/Documents/Rado/git/insuDose/firmware_tests/Insudose/Drivers/EPD/GUI_Paint.h \
  C:/Users/orgo/Documents/Rado/git/insuDose/firmware_tests/Insudose/Drivers/EPD/fonts.h \
- C:/Users/orgo/Documents/Rado/git/insuDose/firmware_tests/Insudose/Drivers/TMP102/TMP102.h \
- C:/Users/orgo/Documents/Rado/git/insuDose/firmware_tests/Insudose/Drivers/Logger/Logger.h \
+ C:/Users/orgo/Documents/Rado/git/insuDose/firmware_tests/Insudose/Drivers/TMP102/tmp102.h \
+ C:/Users/orgo/Documents/Rado/git/insuDose/firmware_tests/Insudose/Drivers/Logger/logger.h \
  C:/Users/orgo/Documents/Rado/git/insuDose/firmware_tests/Insudose/Drivers/Charger/charger.h
 ../Core/Inc/main.h:
 ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal.h:
@@ -172,6 +172,6 @@ C:/Users/orgo/Documents/Rado/git/insuDose/firmware_tests/Insudose/Drivers/EPD/Di
 C:/Users/orgo/Documents/Rado/git/insuDose/firmware_tests/Insudose/Drivers/EPD/fonts.h:
 C:/Users/orgo/Documents/Rado/git/insuDose/firmware_tests/Insudose/Drivers/EPD/GUI_Paint.h:
 C:/Users/orgo/Documents/Rado/git/insuDose/firmware_tests/Insudose/Drivers/EPD/fonts.h:
-C:/Users/orgo/Documents/Rado/git/insuDose/firmware_tests/Insudose/Drivers/TMP102/TMP102.h:
-C:/Users/orgo/Documents/Rado/git/insuDose/firmware_tests/Insudose/Drivers/Logger/Logger.h:
+C:/Users/orgo/Documents/Rado/git/insuDose/firmware_tests/Insudose/Drivers/TMP102/tmp102.h:
+C:/Users/orgo/Documents/Rado/git/insuDose/firmware_tests/Insudose/Drivers/Logger/logger.h:
 C:/Users/orgo/Documents/Rado/git/insuDose/firmware_tests/Insudose/Drivers/Charger/charger.h:

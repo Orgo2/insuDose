@@ -37,10 +37,10 @@
 #include "GUI_Paint.h"
 #include <string.h>
 #include "stdio.h"
-#include "TMP102.h"
-#include "Logger.h"
+#include "tmp102.h"
+#include "logger.h"
 #include "charger.h"
-
+#define ENABLE_EPD 0
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -71,9 +71,48 @@ extern RTC_HandleTypeDef hrtc;
 
 /* USER CODE BEGIN PV */
 //static uint8_t BlackImage[EPD_WIDTH * EPD_HEIGHT / 8]; //display drawing buffer
+static uint8_t BlackImage[EPD_WIDTH * EPD_HEIGHT / 8];
+static uint8_t epd_inited = 0;
 uint8_t dose = 0;
 float temperature = 0.0f;
+static volatile uint8_t dose_event_pending = 0;
+static volatile uint8_t usb_event_pending = 0; // edge detected on USB 5V pin
+static uint8_t usb_connected = 0; // tracked state
+static uint8_t usb_started = 0;   // whether USB device stack is started
 
+// Generic debounce utility (shared for future buttons)
+typedef struct {
+  uint8_t stable_level;     // last stable raw level (0/1)
+  uint8_t debounced_state;  // last debounced logical state (0=not pressed,1=pressed)
+  uint32_t last_toggle_ms;  // last time raw changed
+  uint32_t debounce_ms;     // threshold
+  uint8_t active_low;       // invert logic
+} DebounceCtx;
+
+static uint8_t debounce_update(DebounceCtx *ctx, uint8_t raw_level, uint32_t now_ms)
+{
+  uint8_t event = 0; // 1=pressed, 2=released
+  if (raw_level != ctx->stable_level) {
+    if ((now_ms - ctx->last_toggle_ms) >= ctx->debounce_ms) {
+      // accept new stable level
+      ctx->stable_level = raw_level;
+      ctx->last_toggle_ms = now_ms;
+      uint8_t logical = ctx->active_low ? (ctx->stable_level == 0) : (ctx->stable_level == 1);
+      if (logical != ctx->debounced_state) {
+        ctx->debounced_state = logical;
+        event = logical ? 1 : 2;
+      }
+    }
+  } else {
+    // no change; refresh timer baseline
+    ctx->last_toggle_ms = now_ms;
+  }
+  return event;
+}
+
+static DebounceCtx s_db_dose = { .stable_level = 1, .debounced_state = 0, .last_toggle_ms = 0, .debounce_ms = 30, .active_low = 1 };
+static uint8_t usb_boot_check_active = 0; // non-blocking bootloader hold in progress
+static uint32_t usb_boot_deadline_ms = 0;  // time when we decide (Jump or start USB)
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -88,7 +127,7 @@ void JumpToBootloader(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-
+// removed extra helper prototypes; logic is inlined in main loop
 /* USER CODE END 0 */
 
 /**
@@ -137,45 +176,38 @@ int main(void)
   if (MX_FATFS_Init() != APP_OK) {
     Error_Handler();
   }
-  MX_USB_Device_Init();
+  // Remove eager USB init; start based on PE4 (VBUS)
+  // MX_USB_Device_Init();
   MX_RF_Init();
   /* USER CODE BEGIN 2 */
- // TMP102_Init(&hi2c1); //temperature sensor inicialisation
- // EPD_GPIO_Init();              // Inicializácia GPIO pre displej
- // EPD_HW_Init();
- // RTC_SetBuildTime();
+  // Initialize peripherals for sensors & display
+#if ENABLE_EPD
+  EPD_GPIO_Init();
+  EPD_HW_Init();
+  epd_inited = 1;
+#endif
+  HAL_GPIO_WritePin(PW_TMP_GPIO_Port, PW_TMP_Pin, GPIO_PIN_SET); // power temperature sensor
+  HAL_Delay(5);
+  TMP102_Init(&hi2c1);
+  init_ramdisk();
 
+  // Charger config for CR2032: disable charging, set low-battery thresholds
+  charger_set_enabled(false);
+  charger_batt_watchdog_config(2700, 200, 100); // sleep=2.7V, hyst=0.2V, watchdog band=0.1V
 
-  //function for mcu bootloader jump after power inicialisation
-   uint32_t buttonPressStartTime = 0;
-   uint32_t TimeoutCounter = 0;
-   uint8_t buttonHeld = 0;
-   TimeoutCounter = HAL_GetTick();
-   //till boot jump time period is gone, stay in the loop and read the button
-   while ( HAL_GetTick() - TimeoutCounter <= BootJumpTime ) {
- 	  //read the button. if button is zero(pulldown) start the countdown
- 	  	  if (HAL_GPIO_ReadPin(BUTTON_PORT, BUTTON_PIN) == GPIO_PIN_RESET) {
- 	  	             if (!buttonHeld) {
- 	  	                 buttonHeld = 1;
- 	  	                 buttonPressStartTime = HAL_GetTick();
- 	  	             //if we pass 2s debouncing play beep and jump to the bootloader
- 	  	             } else if (HAL_GetTick() - buttonPressStartTime >= Butt_TIMEOUT_MS) {
- 	  	                 PlayBeep(1000); // pay beep for 1 sec
- 	  	                 JumpToBootloader();
- 	  	             }
- 	  	  }
- 	  	  else {
- 	  	             buttonHeld = 0; // if button was pressed shorter time release the flag
-
- 	  	  }
-
-   }
-   ///////////usb reset////////////
-
-  // USB->CNTR = USB_CNTR_FRES;
-  // USB->CNTR = 0;
-
-
+  // Initial USB state according to PE4
+  usb_connected = (HAL_GPIO_ReadPin(USB_I_GPIO_Port, USB_I_Pin) == GPIO_PIN_SET);
+  if (usb_connected && !usb_started) {
+    // Start USB immediately to avoid host enumeration timeout
+    USB_Device_Start();
+    usb_started = 1;
+    // If ENTER is held, schedule bootloader jump after 5s
+    if (HAL_GPIO_ReadPin(ENT_GPIO_Port, ENT_Pin) == GPIO_PIN_RESET) {
+      usb_boot_check_active = 1;
+      usb_boot_deadline_ms = HAL_GetTick() + 5000u; // 5s window
+    }
+  }
+  logger_set_usb_active(usb_connected);
   /* USER CODE END 2 */
 
   /* Init code for STM32_WPAN */
@@ -185,59 +217,93 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-
-
-	  /* // Načítať čas a dátum
-	  	     RTC_TimeTypeDef sTime;
-	  	     RTC_DateTypeDef sDate;
-	  	     char timeStr[16];
-	  	     char dateStr[16];
-	  	     char tempStr[16];
-
-	  	     //MX_APPE_Process();///bt inicialisation
-
-
-	  	     HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_SET);
-	  	     HAL_Delay(100);
-	  	     HAL_RTC_GetTime(&hrtc, &sTime, RTC_FORMAT_BIN);
-	  	     HAL_RTC_GetDate(&hrtc, &sDate, RTC_FORMAT_BIN); // Dôležité: načítaj Date hneď po Time!
-
-	  	     TMP102_ReadTemperature(&hi2c1, &temperature);  // <<< načítaj teplotu z TMP102
-
-	  	     if (TMP102_ReadTemperature(&hi2c1, &temperature) != HAL_OK) {
-	  	        temperature = -99.9f; // chyba, nepoužiteľná hodnota
-	  	     }
-
-	  	     // Vytvoriť texty pre výpis
-	  	     sprintf(timeStr, "%02d:%02d:%02d", sTime.Hours, sTime.Minutes, sTime.Seconds);
-	  	     sprintf(dateStr, "%02d.%02d.20%02d", sDate.Date, sDate.Month, sDate.Year);
-	  	     sprintf(tempStr, "%.1f C", temperature);      // <<< zaokrúhlené na 1 desatinné miesto
-
-	  	     /////////////////// Vykreslenie na e-paper /////////////////////
-	  	     Paint_NewImage(BlackImage, EPD_WIDTH, EPD_HEIGHT, ROTATE_90, WHITE);
-	  	     Paint_SetMirroring(MIRROR_VERTICAL);
-	  	     Paint_Clear(WHITE); // Vyčisti obraz
-
-	  	     // Vykresliť dátum
-	  	     Paint_DrawString_EN(5, 5, dateStr, &Font16, WHITE, BLACK);
-
-	  	     // Vykresliť čas
-	  	     Paint_DrawString_EN(5, 30, timeStr, &Font24, WHITE, BLACK);
-	  	     // <<< teplota
-	  	     Paint_DrawString_EN(5, 60, tempStr, &Font16, WHITE, BLACK);
-
-	  	     // Odošli na displej
-	  	     EPD_Display(BlackImage);
-
-	  	     // Uspi displej pre úsporu
-	  	     //EPD_DeepSleep();
-
-	  	     // Počkaj 10 sekúnd pred ďalšou aktualizáciou
-	  	     HAL_Delay(10000);
-	  	     Check_And_Log();
-	  	     */
-    /* USER CODE END WHILE */
     MX_APPE_Process();
+    /* USER CODE BEGIN WHILE */
+    // removed old dose_event_pending handler; DOSE is handled by debounce below
+    if (usb_event_pending) {
+      usb_event_pending = 0;
+      uint8_t vbus_now = (HAL_GPIO_ReadPin(USB_I_GPIO_Port, USB_I_Pin) == GPIO_PIN_SET);
+      if (vbus_now && !usb_started) {
+        // Start USB immediately
+        USB_Device_Start();
+        usb_started = 1;
+        if (HAL_GPIO_ReadPin(ENT_GPIO_Port, ENT_Pin) == GPIO_PIN_RESET) {
+          usb_boot_check_active = 1;
+          usb_boot_deadline_ms = HAL_GetTick() + 5000u;
+        }
+      } else if (!vbus_now && usb_started) {
+        USB_Device_Stop();
+        usb_started = 0;
+        usb_boot_check_active = 0;
+      }
+      usb_connected = vbus_now;
+      logger_set_usb_active(usb_connected);
+    }
+
+    // Handle deferred bootloader decision
+    if (usb_boot_check_active) {
+      // If still holding after deadline -> jump
+      if ((int32_t)(HAL_GetTick() - usb_boot_deadline_ms) >= 0) {
+        JumpToBootloader();
+        usb_boot_check_active = 0; // in case jump returns
+      } else {
+        // If user released early, cancel boot jump (USB already started)
+        if (HAL_GPIO_ReadPin(ENT_GPIO_Port, ENT_Pin) != GPIO_PIN_RESET) {
+          usb_boot_check_active = 0;
+        }
+      }
+    }
+
+    // Debounce DOSE and act on PRESS event
+    uint8_t dose_event = debounce_update(&s_db_dose, (HAL_GPIO_ReadPin(DOSE_GPIO_Port, DOSE_Pin) == GPIO_PIN_SET) ? 1 : 0, HAL_GetTick());
+    if (dose_event == 1) { // pressed
+      RTC_TimeTypeDef sTime; RTC_DateTypeDef sDate;
+      HAL_RTC_GetTime(&hrtc, &sTime, RTC_FORMAT_BIN);
+      HAL_RTC_GetDate(&hrtc, &sDate, RTC_FORMAT_BIN);
+      uint16_t yearFull = 2000u + sDate.Year;
+      uint8_t mon = sDate.Month;
+      uint8_t day = sDate.Date;
+      uint8_t hour = sTime.Hours;
+      uint8_t min = sTime.Minutes;
+      float temp_f = 0.0f;
+      int8_t temp_i = LOG_NO_TEMP;
+      if (TMP102_ReadTemperature(&hi2c1, &temp_f) == HAL_OK) {
+        temp_i = (int8_t)(temp_f + (temp_f >= 0 ? 0.5f : -0.5f));
+      }
+      uint8_t dose_units = 1; // fixed per request
+      append_log_rotating(yearFull, mon, day, hour, min, dose_units, temp_i);
+      CHARGER_Fast fast = charger_get_fast();
+#if ENABLE_EPD
+      if (!epd_inited) { EPD_GPIO_Init(); EPD_HW_Init(); epd_inited = 1; }
+      char dateStr[16];
+      char timeStr[16];
+      char tempStr[16];
+      char battStr[20];
+      char chgStr[12];
+      snprintf(dateStr, sizeof(dateStr), "%02u.%02u.%04u", (unsigned)day, (unsigned)mon, (unsigned)yearFull);
+      snprintf(timeStr, sizeof(timeStr), "%02u:%02u", (unsigned)hour, (unsigned)min);
+      if (temp_i == (int8_t)LOG_NO_TEMP) snprintf(tempStr, sizeof(tempStr), "T: /"); else snprintf(tempStr, sizeof(tempStr), "T: %dC", temp_i);
+      if (fast.batt_mv > 0) snprintf(battStr, sizeof(battStr), "Bat: %ldmV", (long)fast.batt_mv); else snprintf(battStr, sizeof(battStr), "Bat: /");
+      switch (fast.status) {
+        case CHARGER_STATUS_CHARGING: strcpy(chgStr, "CHG"); break;
+        case CHARGER_STATUS_IDLE: strcpy(chgStr, "IDLE"); break;
+        case CHARGER_STATUS_FAULT: strcpy(chgStr, "FLT"); break;
+        default: strcpy(chgStr, "?"); break;
+      }
+      Paint_NewImage(BlackImage, EPD_WIDTH, EPD_HEIGHT, ROTATE_90, WHITE);
+      Paint_SetMirroring(MIRROR_VERTICAL);
+      Paint_Clear(WHITE);
+      Paint_DrawString_EN(5, 5, dateStr, &Font16, WHITE, BLACK);
+      Paint_DrawString_EN(5, 30, timeStr, &Font24, WHITE, BLACK);
+      Paint_DrawString_EN(5, 60, tempStr, &Font16, WHITE, BLACK);
+      Paint_DrawString_EN(5, 80, battStr, &Font16, WHITE, BLACK);
+      Paint_DrawString_EN(5, 100, chgStr, &Font16, WHITE, BLACK);
+      EPD_Display(BlackImage);
+#endif
+      PlayBeep(100);
+    }
+    __WFI(); // inline idle sleep
+    /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
   }
@@ -304,6 +370,19 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
+
+  /* USER CODE BEGIN USB_CRS */
+  /* Configure CRS to auto-trim HSI48 using LSE for reliable USB FS clock */
+  __HAL_RCC_CRS_CLK_ENABLE();
+  RCC_CRSInitTypeDef crs = {0};
+  crs.Prescaler = RCC_CRS_SYNC_DIV1;
+  crs.Source = RCC_CRS_SYNC_SOURCE_LSE;
+  crs.Polarity = RCC_CRS_SYNC_POLARITY_RISING;
+  crs.ReloadValue = __HAL_RCC_CRS_RELOADVALUE_CALCULATE(32768, 48000000); // LSE=32768Hz
+  crs.ErrorLimitValue = RCC_CRS_ERRORLIMIT_DEFAULT;
+  crs.HSI48CalibrationValue = 0x40; // mid calibration
+  HAL_RCCEx_CRSConfig(&crs);
+  /* USER CODE END USB_CRS */
 }
 
 /**
@@ -478,6 +557,14 @@ void Check_And_Log(void)
 */
 /////////////////////////////end of datalogger function//////////////////////
 
+// EXTI events: mark pending flags for main loop processing
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
+  if (GPIO_Pin == DOSE_Pin) {
+    dose_event_pending = 1;
+  } else if (GPIO_Pin == USB_I_Pin) {
+    usb_event_pending = 1;
+  }
+}
 /* USER CODE END 4 */
 
 /**

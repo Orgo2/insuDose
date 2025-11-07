@@ -57,7 +57,29 @@ USB_Device/App/usbd_storage_if.o: ../USB_Device/App/usbd_storage_if.c \
  ../Middlewares/ST/STM32_USB_Device_Library/Core/Inc/usbd_ctlreq.h \
  ../Middlewares/ST/STM32_USB_Device_Library/Class/MSC/Inc/usbd_msc_scsi.h \
  ../Middlewares/ST/STM32_USB_Device_Library/Core/Inc/usbd_def.h \
- ../Middlewares/ST/STM32_USB_Device_Library/Core/Inc/usbd_ioreq.h
+ ../Middlewares/ST/STM32_USB_Device_Library/Core/Inc/usbd_ioreq.h \
+ C:/Users/orgo/Documents/Rado/git/insuDose/firmware_tests/Insudose/Drivers/Logger/logger.h \
+ ../FATFS/App/app_fatfs.h ../Middlewares/Third_Party/FatFs/src/ff.h \
+ ../Middlewares/Third_Party/FatFs/src/integer.h ../FATFS/Target/ffconf.h \
+ ../Core/Inc/main.h ../Core/Inc/app_conf.h \
+ ../Middlewares/ST/STM32_WPAN/interface/patterns/ble_thread/hw.h \
+ ../Core/Inc/hw_conf.h ../Core/Inc/hw_if.h \
+ ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_exti.h \
+ ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_system.h \
+ ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_rcc.h \
+ ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_ipcc.h \
+ ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_bus.h \
+ ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_pwr.h \
+ ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_cortex.h \
+ ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_utils.h \
+ ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_hsem.h \
+ ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_gpio.h \
+ ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_rtc.h \
+ ../Middlewares/ST/STM32_WPAN/ble/core/ble_bufsize.h \
+ ../Core/Inc/app_entry.h ../Core/Inc/app_common.h \
+ ../Middlewares/Third_Party/FatFs/src/ff_gen_drv.h \
+ ../Middlewares/Third_Party/FatFs/src/diskio.h \
+ ../Middlewares/Third_Party/FatFs/src/ff.h ../FATFS/Target/user_diskio.h
 ../USB_Device/App/usbd_storage_if.h:
 ../Middlewares/ST/STM32_USB_Device_Library/Class/MSC/Inc/usbd_msc.h:
 ../Middlewares/ST/STM32_USB_Device_Library/Class/MSC/Inc/usbd_msc_bot.h:
@@ -117,3 +139,31 @@ USB_Device/App/usbd_storage_if.o: ../USB_Device/App/usbd_storage_if.c \
 ../Middlewares/ST/STM32_USB_Device_Library/Class/MSC/Inc/usbd_msc_scsi.h:
 ../Middlewares/ST/STM32_USB_Device_Library/Core/Inc/usbd_def.h:
 ../Middlewares/ST/STM32_USB_Device_Library/Core/Inc/usbd_ioreq.h:
+C:/Users/orgo/Documents/Rado/git/insuDose/firmware_tests/Insudose/Drivers/Logger/logger.h:
+../FATFS/App/app_fatfs.h:
+../Middlewares/Third_Party/FatFs/src/ff.h:
+../Middlewares/Third_Party/FatFs/src/integer.h:
+../FATFS/Target/ffconf.h:
+../Core/Inc/main.h:
+../Core/Inc/app_conf.h:
+../Middlewares/ST/STM32_WPAN/interface/patterns/ble_thread/hw.h:
+../Core/Inc/hw_conf.h:
+../Core/Inc/hw_if.h:
+../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_exti.h:
+../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_system.h:
+../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_rcc.h:
+../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_ipcc.h:
+../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_bus.h:
+../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_pwr.h:
+../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_cortex.h:
+../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_utils.h:
+../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_hsem.h:
+../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_gpio.h:
+../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_rtc.h:
+../Middlewares/ST/STM32_WPAN/ble/core/ble_bufsize.h:
+../Core/Inc/app_entry.h:
+../Core/Inc/app_common.h:
+../Middlewares/Third_Party/FatFs/src/ff_gen_drv.h:
+../Middlewares/Third_Party/FatFs/src/diskio.h:
+../Middlewares/Third_Party/FatFs/src/ff.h:
+../FATFS/Target/user_diskio.h:

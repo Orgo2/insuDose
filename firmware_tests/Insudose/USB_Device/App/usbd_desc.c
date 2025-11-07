@@ -65,8 +65,8 @@
 #define USBD_VID     1155
 #define USBD_LANGID_STRING     1033
 #define USBD_MANUFACTURER_STRING     "STMicroelectronics"
-#define USBD_PID     22314
-#define USBD_PRODUCT_STRING     "STM32 Mass Storage"
+#define USBD_PID     0x5720 // standard ST MSC example PID
+#define USBD_PRODUCT_STRING     "InsuDose MSC Logger"
 #define USBD_CONFIGURATION_STRING     "MSC Config"
 #define USBD_INTERFACE_STRING     "MSC Interface"
 
@@ -393,4 +393,3 @@ static void IntToUnicode(uint32_t value, uint8_t * pbuf, uint8_t len)
 /**
   * @}
   */
-
