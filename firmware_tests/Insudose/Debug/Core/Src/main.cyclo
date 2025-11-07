@@ -1,9 +1,9 @@
 ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_rcc.h:1679:22:LL_RCC_LSE_SetDriveCapability	1
 ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_bus.h:597:22:LL_AHB2_GRP1_DisableClock	1
-../Core/Src/main.c:97:5:main	6
-../Core/Src/main.c:250:6:SystemClock_Config	3
-../Core/Src/main.c:312:6:PeriphCommonClock_Config	2
-../Core/Src/main.c:342:6:PlayBeep	1
-../Core/Src/main.c:356:6:JumpToBootloader	2
-../Core/Src/main.c:406:6:RTC_SetBuildTime	3
-../Core/Src/main.c:486:6:Error_Handler	1
+../Core/Src/main.c:98:5:main	6
+../Core/Src/main.c:251:6:SystemClock_Config	3
+../Core/Src/main.c:313:6:PeriphCommonClock_Config	2
+../Core/Src/main.c:343:6:PlayBeep	1
+../Core/Src/main.c:357:6:JumpToBootloader	2
+../Core/Src/main.c:407:6:RTC_SetBuildTime	3
+../Core/Src/main.c:487:6:Error_Handler	1

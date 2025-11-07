@@ -41,17 +41,17 @@ Idx Name          Size      VMA       LMA       File off  Algn
                   CONTENTS, READONLY, DEBUGGING, OCTETS
  18 .debug_rnglists 000028cd  00000000  00000000  000637c8  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 19 .debug_macro  0003702d  00000000  00000000  00066095  2**0
+ 19 .debug_macro  0003727e  00000000  00000000  00066095  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 20 .debug_line   000473f2  00000000  00000000  0009d0c2  2**0
+ 20 .debug_line   00047553  00000000  00000000  0009d313  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 21 .debug_str    0010fae1  00000000  00000000  000e44b4  2**0
+ 21 .debug_str    0011026c  00000000  00000000  000e4866  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 22 .comment      00000043  00000000  00000000  001f3f95  2**0
+ 22 .comment      00000043  00000000  00000000  001f4ad2  2**0
                   CONTENTS, READONLY
- 23 .debug_frame  0000ee10  00000000  00000000  001f3fd8  2**2
+ 23 .debug_frame  0000ee10  00000000  00000000  001f4b18  2**2
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 24 .debug_line_str 00000070  00000000  00000000  00202de8  2**0
+ 24 .debug_line_str 00000070  00000000  00000000  00203928  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
 
 Disassembly of section .text:
@@ -47331,7 +47331,7 @@ void SVCCTL_InitCustomSvc(void)
 
   /* USER CODE END SVCCTL_InitService1 */
 
-  COPY_INSUDOS_UUID(uuid.Char_UUID_128);
+  COPY_INSUDOS_SERVICE_UUID(uuid.Char_UUID_128);
  8012170:	238f      	movs	r3, #143	@ 0x8f
  8012172:	713b      	strb	r3, [r7, #4]
  8012174:	23e5      	movs	r3, #229	@ 0xe5
@@ -47379,30 +47379,30 @@ void SVCCTL_InitCustomSvc(void)
   /**
    *  Insudos
    */
-  COPY_INSUDOS_UUID(uuid.Char_UUID_128);
- 80121c4:	238f      	movs	r3, #143	@ 0x8f
+  COPY_INSUDOS_CHAR_UUID(uuid.Char_UUID_128);
+ 80121c4:	2319      	movs	r3, #25
  80121c6:	713b      	strb	r3, [r7, #4]
- 80121c8:	23e5      	movs	r3, #229	@ 0xe5
+ 80121c8:	23ed      	movs	r3, #237	@ 0xed
  80121ca:	717b      	strb	r3, [r7, #5]
- 80121cc:	23b3      	movs	r3, #179	@ 0xb3
+ 80121cc:	2382      	movs	r3, #130	@ 0x82
  80121ce:	71bb      	strb	r3, [r7, #6]
- 80121d0:	23d5      	movs	r3, #213	@ 0xd5
+ 80121d0:	23ae      	movs	r3, #174	@ 0xae
  80121d2:	71fb      	strb	r3, [r7, #7]
- 80121d4:	232e      	movs	r3, #46	@ 0x2e
+ 80121d4:	23ed      	movs	r3, #237	@ 0xed
  80121d6:	723b      	strb	r3, [r7, #8]
- 80121d8:	237f      	movs	r3, #127	@ 0x7f
+ 80121d8:	2321      	movs	r3, #33	@ 0x21
  80121da:	727b      	strb	r3, [r7, #9]
- 80121dc:	234a      	movs	r3, #74	@ 0x4a
+ 80121dc:	234c      	movs	r3, #76	@ 0x4c
  80121de:	72bb      	strb	r3, [r7, #10]
- 80121e0:	2398      	movs	r3, #152	@ 0x98
+ 80121e0:	239d      	movs	r3, #157	@ 0x9d
  80121e2:	72fb      	strb	r3, [r7, #11]
- 80121e4:	232a      	movs	r3, #42	@ 0x2a
+ 80121e4:	2341      	movs	r3, #65	@ 0x41
  80121e6:	733b      	strb	r3, [r7, #12]
- 80121e8:	2348      	movs	r3, #72	@ 0x48
+ 80121e8:	2345      	movs	r3, #69	@ 0x45
  80121ea:	737b      	strb	r3, [r7, #13]
- 80121ec:	237a      	movs	r3, #122	@ 0x7a
+ 80121ec:	2322      	movs	r3, #34	@ 0x22
  80121ee:	73bb      	strb	r3, [r7, #14]
- 80121f0:	23cc      	movs	r3, #204	@ 0xcc
+ 80121f0:	238e      	movs	r3, #142	@ 0x8e
  80121f2:	73fb      	strb	r3, [r7, #15]
  80121f4:	2300      	movs	r3, #0
  80121f6:	743b      	strb	r3, [r7, #16]
@@ -47412,7 +47412,7 @@ void SVCCTL_InitCustomSvc(void)
  80121fe:	74bb      	strb	r3, [r7, #18]
  8012200:	2300      	movs	r3, #0
  8012202:	74fb      	strb	r3, [r7, #19]
-  ret = aci_gatt_add_char(CustomContext.CustomServiceHdle,
+  ret = aci_gatt_add_char(CustomContext.CustomInsudosServHdle,
  8012204:	4b0d      	ldr	r3, [pc, #52]	@ (801223c <SVCCTL_InitCustomSvc+0xe0>)
  8012206:	8818      	ldrh	r0, [r3, #0]
  8012208:	4b0d      	ldr	r3, [pc, #52]	@ (8012240 <SVCCTL_InitCustomSvc+0xe4>)

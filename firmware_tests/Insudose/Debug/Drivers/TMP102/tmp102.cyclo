@@ -1,5 +1,5 @@
 ../Drivers/TMP102/tmp102.c:5:13:tmp102_conv_temp_to_bytes	1
 ../Drivers/TMP102/tmp102.c:14:19:TMP102_Init	1
-../Drivers/TMP102/tmp102.c:22:19:TMP102_ReadTemperature	4
-../Drivers/TMP102/tmp102.c:58:19:TMP102_EnableAlarm	3
-../Drivers/TMP102/tmp102.c:89:19:TMP102_SetAlarm	12
+../Drivers/TMP102/tmp102.c:27:6:TMP102_Deinit	1
+../Drivers/TMP102/tmp102.c:37:19:TMP102_ReadTemperature	4
+../Drivers/TMP102/tmp102.c:75:19:TMP102_SetAlarm	12

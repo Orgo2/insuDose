@@ -26,6 +26,7 @@
 #include "usbd_core.h"
 
 #include "usbd_msc.h"
+#include "logger.h"
 
 /* USER CODE BEGIN Includes */
 

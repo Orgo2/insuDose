@@ -16,5 +16,5 @@
 HAL_StatusTypeDef TMP102_Init(I2C_HandleTypeDef *hi2c);
 HAL_StatusTypeDef TMP102_ReadTemperature(I2C_HandleTypeDef *hi2c, float *temperature_celsius);
 HAL_StatusTypeDef TMP102_SetAlarm(I2C_HandleTypeDef *hi2c, float t_low_c, float t_high_c, uint8_t fault_count);
-
+void TMP102_Deinit();
 #endif // TMP102_H

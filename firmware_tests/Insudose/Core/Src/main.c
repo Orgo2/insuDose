@@ -31,14 +31,15 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-//#include "Display_EPD_W21_spi.h"
-//#include "Display_EPD_W21.h"
+#include "Display_EPD_W21_spi.h"
+#include "Display_EPD_W21.h"
 #include "fonts.h"
-//#include "GUI_Paint.h"
+#include "GUI_Paint.h"
 #include <string.h>
 #include "stdio.h"
-//#include "TMP102.h"
-//#include "LOG.h"
+#include "TMP102.h"
+#include "Logger.h"
+#include "charger.h"
 
 /* USER CODE END Includes */
 

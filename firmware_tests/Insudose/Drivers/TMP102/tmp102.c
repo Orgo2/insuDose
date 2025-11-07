@@ -13,9 +13,24 @@ static void tmp102_conv_temp_to_bytes(float temp_c, uint8_t *out_msb, uint8_t *o
 // Inicializácia TMP102 (voliteľné, môžeš nakonfigurovať režimy ak chceš)
 HAL_StatusTypeDef TMP102_Init(I2C_HandleTypeDef *hi2c)
 {
-    // TMP102 je pripravený ihneď po napájaní.
+	// 1) Zapni napájanie senzora cez definovaný pin PW_TMP
+	HAL_GPIO_WritePin(PW_TMP_GPIO_Port, PW_TMP_Pin, GPIO_PIN_SET);
+
+	// 2) Počkajúci čas na stabilizáciu senzora (typicky 250 ms)
+	HAL_Delay(250);
+	// TMP102 je pripravený ihneď po napájaní.
     // Voliteľne by si mohol nastaviť konfiguráciu, ale default je OK.
     return HAL_OK;
+}
+
+//deinicializacia(vypnutie) TMP102 senzora
+void TMP102_Deinit()
+{
+	// 1) Zapni napájanie senzora cez definovaný pin PW_TMP
+	HAL_GPIO_WritePin(PW_TMP_GPIO_Port, PW_TMP_Pin, GPIO_PIN_RESET);
+	// cakaj kym sa senzor uplne vypne aby nerobil problemy na linke
+	HAL_Delay(100);
+
 }
 
 // Čítanie teploty
@@ -52,7 +67,7 @@ HAL_StatusTypeDef TMP102_ReadTemperature(I2C_HandleTypeDef *hi2c, float *tempera
     return HAL_OK;
 }
 
-// Removed redundant TMP102_EnableAlarm implementation (merged into TMP102_SetAlarm)
+
 
 // Nastaví oba prahy (T_LOW a T_HIGH) a konfiguruje TMP102 do comparator režimu
 // s nízkou spotrebou. Funkcia zapne napájanie cez PW_TMP pin, počká na štart

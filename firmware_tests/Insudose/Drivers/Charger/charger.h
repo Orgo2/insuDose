@@ -2,11 +2,35 @@
  * charger.h
  *
  *  Created on: Aug 14, 2025
- *      Author: Orgo
+ *      Author: Orgo and chatgpt
  */
 
-#ifndef CHARGER_CHARGER_H_
-#define CHARGER_CHARGER_H_
+
+/*
+ * charger.h
+ * Minimalne HAL-only API pre STNS01 nabíjač + dohľad batérie cez ADC watchdog.
+ *
+ * Dôležité elektrické poznámky:
+ *  - CEN (Chip ENable) pín je na STNS01 typicky **active-HIGH**:
+ *      CEN=1 -> povolený nabíjač, CEN=0 -> zakázaný nabíjač.
+ *
+ *
+ *  - CHG (Charge status) je zvyčajne **open-drain výstup** z čipu:
+ *      CHG = LOW  -> práve nabíja
+ *      CHG = HIGH -> nenabíja (plné / standby / VIN nie je / CEN=0)
+ *
+ *
+ *  - VBAT meranie:
+ *      Delič: BAT — 470k — ADC — 47k — GND
+ *      ADC preto vidí len zlomok napätia (Rbot/(Rtop+Rbot)), treba matematicky prepočítať.
+ *      Delič je “veľmi mäkký” (veľká impedancia), preto používame dlhší sampling čas ADC,
+ *      napr. 640.5 cyklov.
+ *
+ *  - Spotreba:
+ *      ADC beží len pri jednorazovom meraní (fast) a keď je “ozbrojený” watchdog blízko prahu.
+ *      Inak je ADC zastavený, aby sa šetrila energia.
+ */
+
 #ifndef CHARGER_H
 #define CHARGER_H
 
@@ -15,45 +39,33 @@
 #include "main.h"
 #pragma once
 
-
-// -------- PINY  gpio na stns01 --------
+/* -------------------- Piny (uprav podľa dosky) -------------------- */
 #define CHARGER_CEN_GPIO_Port   GPIOB
-#define CHARGER_CEN_Pin         GPIO_PIN_0   // PB0 -> CEN (active-HIGH)
-#define CHARGER_CHG_GPIO_Port   GPIOA
-#define CHARGER_CHG_Pin         GPIO_PIN_10  // PA10 -> CHG (active-LOW)
-#define CHARGER_BAT_ADC_Port    GPIOA
-#define CHARGER_BAT_ADC_Pin     GPIO_PIN_1   // PA1  -> VBAT divider
+#define CHARGER_CEN_Pin         GPIO_PIN_0    // PB0 -> CEN (active-HIGH)
 
-// -------- LOGIKA PODĽA STNS01 --------
-// CEN: active-HIGH (LOW = disable)
+#define CHARGER_CHG_GPIO_Port   GPIOA
+#define CHARGER_CHG_Pin         GPIO_PIN_10   // PA10 -> CHG (active-LOW, open-drain, vyžaduje pull-up)
+
+#define CHARGER_BAT_ADC_Port    GPIOA
+#define CHARGER_BAT_ADC_Pin     GPIO_PIN_1    // PA1  -> VBAT delič (470k/47k)
+
+/* -------------------- Logika úrovní -------------------- */
 #define CHARGER_CEN_ACTIVE_HIGH 1
-// CHG: active-LOW, open-drain; toggling pri fault
 #define CHARGER_CHG_ACTIVE_LOW  1
 
-// -------- STATUS KÓDY --------
-#define CHARGER_STATUS_IDLE      0  // nevie/nenabíja (VIN off alebo CEN off)
-#define CHARGER_STATUS_CHARGING  1  // nabíja (CHG = LOW)
-#define CHARGER_STATUS_FULL      2  // hotovo/standby (VIN on + CEN on + CHG=HIGH, bez togglingu)
-#define CHARGER_STATUS_FAULT     3  // chyba (CHG toggling ~1 Hz)
+/* -------------------- Stavy -------------------- */
+typedef enum {
+    CHARGER_STATUS_IDLE     = 0,  // CHG=HIGH  (nenabíja)
+    CHARGER_STATUS_CHARGING = 1,  // CHG=LOW   (nabíja)
+    CHARGER_STATUS_FAULT    = 3   // toggling CHG ~1 Hz (zistené len v blocking volaní)
+} CHARGER_Status;
 
-// -------- ADC (VOLITEĽNÉ) --------
-// Zapni len ak máš nakonfigurovaný hadc1 v .ioc
+/* -------------------- ADC zap/vyp na projekte -------------------- */
 #ifndef CHARGER_USE_ADC
 #define CHARGER_USE_ADC 1
 #endif
-//zapne vnutornu  ref.
-#ifndef CHARGER_USE_VREFINT
-#define CHARGER_USE_VREFINT 1
-#endif
-// PA1 ADC kanál – doplň podľa .ioc (napr. ADC_CHANNEL_6):
- #define CHARGER_ADC_CHANNEL ADC_CHANNEL_6
 
-// Referencia ADC (mV) – nastav na reálne VDDA
-#ifndef CHARGER_VREF_MV
-#define CHARGER_VREF_MV 3100
-#endif
-
-// delič: BAT—470k—ADC—47k—GND
+/* Delič: BAT—470k—ADC—47k—GND  */
 #ifndef CHARGER_RTOP_OHM
 #define CHARGER_RTOP_OHM 470000
 #endif
@@ -61,34 +73,55 @@
 #define CHARGER_RBOT_OHM 47000
 #endif
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+/* ADC kanál pre PA1 – uprav podľa .ioc (napr. ADC_CHANNEL_6) */
+#define CHARGER_ADC_CHANNEL ADC_CHANNEL_6
 
-// Inicializácia pinov; enable_on_boot=false = hneď zakáž nabíjanie (bezpečné default)
-void charger_init(bool enable_on_boot);
+/* Výstup „fast“ volania: okamžitý status + VBAT v mV (alebo -1, ak ADC nepoužívaš) */
+typedef struct {
+    int32_t        batt_mv;   // mV, alebo -1 ak ADC nepoužívaš
+    CHARGER_Status status;    // CHARGING / IDLE (bez čakania)
+} CHARGER_Fast;
 
-// Zapnúť/vypnúť nabíjanie (len prepíše CEN)
-void charger_set_enabled(bool enable);
+/* -------------------- API: charger GPIO -------------------- */
 
-// Rýchly status (bez blokovania a bez “fault” detekcie togglingu):
-// - vráti 1 ak CHG=LOW
-// - 2 ak VIN=true && enable=true && CHG=HIGH
-// - inak 0
-int charger_get_status_fast(bool vin_present);
+/* Nastaví CEN pin:
+ *  enable=true  -> povolí nabíjač
+ *  enable=false -> zakáže nabíjač
+ * Pozn.: len prepis pinu, žiadna “magická” inicializácia. GPIO si nastav v CubeMX. */
+void          charger_set_enabled(bool enable);
 
-// Presná detekcia vrátane “fault” (pozoruje CHG toggling do observe_ms; odporúčam >=1200 ms):
-int charger_get_status_blocking(bool vin_present, uint32_t observe_ms);
+/* FAST (rýchle) čítanie bez čakania:
+ *  - prečíta CHG (status nabíjania)
+ *  - jednorazovo zmeria VBAT (ak je povolený ADC) a vráti v mV
+ *  - vyhodnotí politiku nízkej batérie a prípadne armuje/odarmuje ADC watchdog
+ *    (pozri charger_batt_watchdog_config() nižšie)
+ */
+CHARGER_Fast  charger_get_fast(void);
 
-// Pomôcky:
-bool charger_is_charging_fast(void);     // ekvivalent (CHG=LOW ?)
-int32_t charger_read_bat(void);  // vráti -1, ak CHARGER_USE_ADC=0
+/* BLOCKING (pomalé) čítanie s detekciou FAULT:
+ *  - fixne čaká ~1200 ms na toggling CHG (fault ~1 Hz z datasheetu)
+ *  - vráti CHARGER_STATUS_FAULT pri detekcii; inak CHARGING/IDLE
+ */
+CHARGER_Status charger_get_status_blocking(void);
 
-#ifdef __cplusplus
-}
-#endif
+/* -------------------- Low-battery politika + watchdog -------------------- */
+
+/* Nastavenie politík (v mV):
+ *  sleep_mv ... úroveň batérie pre “ísť spať”
+ *  hyst_mv  ... hysterézia pre “prebudenie” (prebudí na sleep_mv + hyst_mv)
+ *  bwdg_mv  ... “okolie” okolo sleep_mv, v ktorom SA ARMUJE ADC watchdog
+ *               (ak VBAT <= sleep_mv + bwdg_mv), aby sa neprepásol prudký pád
+ */
+void charger_batt_watchdog_config(uint32_t sleep_mv, uint32_t hyst_mv, uint32_t bwdg_mv);
+
+/* Číta flag, ktorý nastavuje IRQ watchdogu:
+ *  true  -> batéria nízka, systém by sa mal uložiť (logger flush, “discharged” na displej, sleep)
+ *  false -> batéria OK / alebo sme už nad hysteréziou (prebudené)
+ */
+bool charger_batt_low_flag(void);
+
+/* Ručne odarmuje watchdog a zastaví ADC (šetrenie spotreby).
+ * Použi napr. po úspešnom prechode do SLEEP, ak nechceš, aby ADC bežal. */
+void charger_batt_watchdog_disarm(void);
+
 #endif // CHARGER_H
-
-
-
-#endif /* CHARGER_CHARGER_H_ */

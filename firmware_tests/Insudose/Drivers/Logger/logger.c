@@ -4,7 +4,7 @@
 
 static volatile bool s_usb_active = false;
 void logger_set_usb_active(bool active) { s_usb_active = active; }
-// keď raz dôjde k wrapu(naplni sa pamat), ostávame v „ring“ režime
+// keď raz dôjde k wrapu(naplni sa pamat), ostávame v „ring" režime
 static bool s_wrapped = false;
 
 
@@ -60,11 +60,11 @@ void append_log_rotating(uint16_t year, uint8_t mon, uint8_t day,
     if (!time_missing) {
     	// nechaj: char ts[13]; toto je aby kompilator vedel ze ziaden znak neprekroci danu hodnotu
     	snprintf(ts, sizeof(ts), "%04u%02u%02u%02u%02u",
-    	         (unsigned)(year % 10000u),
-    	         (unsigned)(mon  % 100u),
-    	         (unsigned)(day  % 100u),
-    	         (unsigned)(hour % 100u),
-    	         (unsigned)(min  % 100u));
+		         (unsigned)(year % 10000u),
+		         (unsigned)(mon  % 100u),
+		         (unsigned)(day  % 100u),
+		         (unsigned)(hour % 100u),
+		         (unsigned)(min  % 100u));
     } else {
         memset(ts, '/', 12);
         ts[12] = '\0';
