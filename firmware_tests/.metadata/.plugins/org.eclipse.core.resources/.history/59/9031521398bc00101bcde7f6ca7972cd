@@ -16,7 +16,7 @@ static void tmp102_conv_temp_to_bytes(float temp_c, uint8_t *out_msb, uint8_t *o
 HAL_StatusTypeDef TMP102_Init(I2C_HandleTypeDef *hi2c)
 {
 	// Ensure internal pull-ups are ON for I2C pins while sensor is active
-	if (!hi2c || hi2c->Instance != I2C1) return HAL_ERROR;
+	if (!hi2c || hi2c->Instance != I2C1) return;
 	    GPIO_InitTypeDef GPIO_InitStruct = {0};
 	    __HAL_RCC_GPIOB_CLK_ENABLE();
 	    GPIO_InitStruct.Pin = GPIO_PIN_8 | GPIO_PIN_9; // SCL / SDA

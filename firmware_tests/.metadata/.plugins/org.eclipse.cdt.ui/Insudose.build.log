@@ -1,13 +1,6 @@
-12:32:53 **** Incremental Build of configuration Debug for project Insudose ****
+12:42:59 **** Incremental Build of configuration Debug for project Insudose ****
 make -j16 all 
 arm-none-eabi-gcc "../Drivers/TMP102/tmp102.c" -mcpu=cortex-m4 -std=gnu11 -g3 -DDEBUG -DUSE_HAL_DRIVER -DSTM32WB55xx -c -I"C:/Users/orgo/Documents/Rado/git/insuDose/firmware_tests/Insudose/Drivers/Charger" -I../Core/Inc -I"C:/Users/orgo/Documents/Rado/git/insuDose/firmware_tests/Insudose/Drivers/EPD" -I../Drivers/STM32WBxx_HAL_Driver/Inc -I../Drivers/STM32WBxx_HAL_Driver/Inc/Legacy -I../Drivers/CMSIS/Device/ST/STM32WBxx/Include -I../Drivers/CMSIS/Include -I"C:/Users/orgo/Documents/Rado/git/insuDose/firmware_tests/Insudose/Drivers/TMP102" -I"C:/Users/orgo/Documents/Rado/git/insuDose/firmware_tests/Insudose/Drivers/Logger" -I../STM32_WPAN/App -I../Utilities/lpm/tiny_lpm -I../Middlewares/ST/STM32_WPAN -I../Middlewares/ST/STM32_WPAN/interface/patterns/ble_thread -I../Middlewares/ST/STM32_WPAN/interface/patterns/ble_thread/tl -I../Middlewares/ST/STM32_WPAN/interface/patterns/ble_thread/shci -I../Middlewares/ST/STM32_WPAN/utilities -I../Middlewares/ST/STM32_WPAN/ble/core -I../Middlewares/ST/STM32_WPAN/ble/core/auto -I../Middlewares/ST/STM32_WPAN/ble/core/template -I../Middlewares/ST/STM32_WPAN/ble/svc/Inc -I../Middlewares/ST/STM32_WPAN/ble/svc/Src -I../Utilities/sequencer -I../Middlewares/ST/STM32_WPAN/ble -I../FATFS/Target -I../FATFS/App -I../USB_Device/App -I../USB_Device/Target -I../Middlewares/Third_Party/FatFs/src -I../Middlewares/ST/STM32_USB_Device_Library/Core/Inc -I../Middlewares/ST/STM32_USB_Device_Library/Class/MSC/Inc -O0 -ffunction-sections -fdata-sections -Wall -fstack-usage -fcyclomatic-complexity -MMD -MP -MF"Drivers/TMP102/tmp102.d" -MT"Drivers/TMP102/tmp102.o" --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -o "Drivers/TMP102/tmp102.o"
-../Drivers/TMP102/tmp102.c: In function 'TMP102_Init':
-../Drivers/TMP102/tmp102.c:19:46: warning: 'return' with no value, in function returning non-void [-Wreturn-type]
-   19 |         if (!hi2c || hi2c->Instance != I2C1) return;
-      |                                              ^~~~~~
-../Drivers/TMP102/tmp102.c:16:19: note: declared here
-   16 | HAL_StatusTypeDef TMP102_Init(I2C_HandleTypeDef *hi2c)
-      |                   ^~~~~~~~~~~
 arm-none-eabi-gcc -o "Insudose.elf" @"objects.list"   -mcpu=cortex-m4 -T"C:\Users\orgo\Documents\Rado\git\insuDose\firmware_tests\Insudose\STM32WB55CGUX_FLASH.ld" --specs=nosys.specs -Wl,-Map="Insudose.map" -Wl,--gc-sections -static --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -u _printf_float -Wl,--start-group -lc -lm -Wl,--end-group
 Finished building target: Insudose.elf
  
@@ -15,7 +8,7 @@ arm-none-eabi-size  Insudose.elf
 arm-none-eabi-objdump -h -S Insudose.elf  > "Insudose.list"
 arm-none-eabi-objcopy  -O ihex Insudose.elf  "Insudose.hex"
    text	   data	    bss	    dec	    hex	filename
- 115888	   3025	  72887	 191800	  2ed38	Insudose.elf
+ 115880	   3025	  72887	 191792	  2ed30	Insudose.elf
 Finished building: default.size.stdout
  
 Finished building: Insudose.hex
@@ -23,5 +16,5 @@ Finished building: Insudose.hex
 Finished building: Insudose.list
  
 
-12:32:54 Build Finished. 0 errors, 1 warnings. (took 1s.163ms)
+12:43:00 Build Finished. 0 errors, 0 warnings. (took 1s.158ms)
 
