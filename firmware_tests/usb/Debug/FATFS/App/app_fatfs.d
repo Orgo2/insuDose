@@ -21,6 +21,8 @@ FATFS/App/app_fatfs.o: ../FATFS/App/app_fatfs.c ../FATFS/App/app_fatfs.h \
  ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_adc.h \
  ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_adc_ex.h \
  ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_cortex.h \
+ ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_crc.h \
+ ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_crc_ex.h \
  ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_exti.h \
  ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_flash.h \
  ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_flash_ex.h \
@@ -43,8 +45,8 @@ FATFS/App/app_fatfs.o: ../FATFS/App/app_fatfs.c ../FATFS/App/app_fatfs.h \
  ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_crs.h \
  ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_rtc.h \
  ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_rtc_ex.h \
- ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_spi.h \
- ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_spi_ex.h \
+ ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_sai.h \
+ ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_sai_ex.h \
  ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_system.h \
  ../Middlewares/Third_Party/FatFs/src/ff_gen_drv.h \
  ../Middlewares/Third_Party/FatFs/src/diskio.h \
@@ -76,6 +78,8 @@ FATFS/App/app_fatfs.o: ../FATFS/App/app_fatfs.c ../FATFS/App/app_fatfs.h \
 ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_adc.h:
 ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_adc_ex.h:
 ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_cortex.h:
+../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_crc.h:
+../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_crc_ex.h:
 ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_exti.h:
 ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_flash.h:
 ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_flash_ex.h:
@@ -98,8 +102,8 @@ FATFS/App/app_fatfs.o: ../FATFS/App/app_fatfs.c ../FATFS/App/app_fatfs.h \
 ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_crs.h:
 ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_rtc.h:
 ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_rtc_ex.h:
-../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_spi.h:
-../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_spi_ex.h:
+../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_sai.h:
+../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_sai_ex.h:
 ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_system.h:
 ../Middlewares/Third_Party/FatFs/src/ff_gen_drv.h:
 ../Middlewares/Third_Party/FatFs/src/diskio.h:

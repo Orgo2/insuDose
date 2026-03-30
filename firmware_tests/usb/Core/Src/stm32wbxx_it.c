@@ -59,7 +59,8 @@
 /* External variables --------------------------------------------------------*/
 extern PCD_HandleTypeDef hpcd_USB_FS;
 extern RTC_HandleTypeDef hrtc;
-extern SPI_HandleTypeDef hspi1;
+extern DMA_HandleTypeDef hdma_sai1_a;
+extern SAI_HandleTypeDef hsai_BlockA1;
 /* USER CODE BEGIN EV */
 
 /* USER CODE END EV */
@@ -217,6 +218,48 @@ void RTC_WKUP_IRQHandler(void)
 }
 
 /**
+  * @brief This function handles EXTI line0 interrupt.
+  */
+void EXTI0_IRQHandler(void)
+{
+  /* USER CODE BEGIN EXTI0_IRQn 0 */
+
+  /* USER CODE END EXTI0_IRQn 0 */
+  HAL_GPIO_EXTI_IRQHandler(Enter_Pin);
+  /* USER CODE BEGIN EXTI0_IRQn 1 */
+
+  /* USER CODE END EXTI0_IRQn 1 */
+}
+
+/**
+  * @brief This function handles EXTI line2 interrupt.
+  */
+void EXTI2_IRQHandler(void)
+{
+  /* USER CODE BEGIN EXTI2_IRQn 0 */
+
+  /* USER CODE END EXTI2_IRQn 0 */
+  HAL_GPIO_EXTI_IRQHandler(Dose_Pin);
+  /* USER CODE BEGIN EXTI2_IRQn 1 */
+
+  /* USER CODE END EXTI2_IRQn 1 */
+}
+
+/**
+  * @brief This function handles EXTI line3 interrupt.
+  */
+void EXTI3_IRQHandler(void)
+{
+  /* USER CODE BEGIN EXTI3_IRQn 0 */
+
+  /* USER CODE END EXTI3_IRQn 0 */
+  HAL_GPIO_EXTI_IRQHandler(Temp_alarm_Pin);
+  /* USER CODE BEGIN EXTI3_IRQn 1 */
+
+  /* USER CODE END EXTI3_IRQn 1 */
+}
+
+/**
   * @brief This function handles EXTI line4 interrupt.
   */
 void EXTI4_IRQHandler(void)
@@ -224,10 +267,38 @@ void EXTI4_IRQHandler(void)
   /* USER CODE BEGIN EXTI4_IRQn 0 */
 
   /* USER CODE END EXTI4_IRQn 0 */
-  HAL_GPIO_EXTI_IRQHandler(Power_Detect_Pin);
+  HAL_GPIO_EXTI_IRQHandler(PWR_detect_Pin);
   /* USER CODE BEGIN EXTI4_IRQn 1 */
 
   /* USER CODE END EXTI4_IRQn 1 */
+}
+
+/**
+  * @brief This function handles DMA1 channel1 global interrupt.
+  */
+void DMA1_Channel1_IRQHandler(void)
+{
+  /* USER CODE BEGIN DMA1_Channel1_IRQn 0 */
+
+  /* USER CODE END DMA1_Channel1_IRQn 0 */
+  mic_pdm_dma_irqhandler();
+  /* USER CODE BEGIN DMA1_Channel1_IRQn 1 */
+
+  /* USER CODE END DMA1_Channel1_IRQn 1 */
+}
+
+/**
+  * @brief This function handles USB high priority interrupt.
+  */
+void USB_HP_IRQHandler(void)
+{
+  /* USER CODE BEGIN USB_HP_IRQn 0 */
+
+  /* USER CODE END USB_HP_IRQn 0 */
+  HAL_PCD_IRQHandler(&hpcd_USB_FS);
+  /* USER CODE BEGIN USB_HP_IRQn 1 */
+
+  /* USER CODE END USB_HP_IRQn 1 */
 }
 
 /**
@@ -245,17 +316,30 @@ void USB_LP_IRQHandler(void)
 }
 
 /**
-  * @brief This function handles SPI1 global interrupt.
+  * @brief This function handles EXTI line[9:5] interrupts.
   */
-void SPI1_IRQHandler(void)
+void EXTI9_5_IRQHandler(void)
 {
-  /* USER CODE BEGIN SPI1_IRQn 0 */
+  /* USER CODE BEGIN EXTI9_5_IRQn 0 */
 
-  /* USER CODE END SPI1_IRQn 0 */
-  HAL_SPI_IRQHandler(&hspi1);
-  /* USER CODE BEGIN SPI1_IRQn 1 */
+  /* USER CODE END EXTI9_5_IRQn 0 */
+  HAL_GPIO_EXTI_IRQHandler(D_busy_Pin);
+  /* USER CODE BEGIN EXTI9_5_IRQn 1 */
 
-  /* USER CODE END SPI1_IRQn 1 */
+  /* USER CODE END EXTI9_5_IRQn 1 */
+}
+
+/**
+  * @brief This function handles SAI1 global interrupt.
+  */
+void SAI1_IRQHandler(void)
+{
+  /* USER CODE BEGIN SAI1_IRQn 0 */
+
+  /* USER CODE END SAI1_IRQn 0 */
+  /* USER CODE BEGIN SAI1_IRQn 1 */
+
+  /* USER CODE END SAI1_IRQn 1 */
 }
 
 /**
@@ -272,35 +356,23 @@ void RTC_Alarm_IRQHandler(void)
   /* USER CODE END RTC_Alarm_IRQn 1 */
 }
 
-/* USER CODE BEGIN 1 */
-void EXTI0_IRQHandler(void)
+/**
+  * @brief This function handles FPU global interrupt.
+  */
+void FPU_IRQHandler(void)
 {
-  HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_0);
+  /* USER CODE BEGIN FPU_IRQn 0 */
+
+  /* USER CODE END FPU_IRQn 0 */
+  /* USER CODE BEGIN FPU_IRQn 1 */
+
+  /* USER CODE END FPU_IRQn 1 */
 }
 
-
+/* USER CODE BEGIN 1 */
 void PVD_PVM_IRQHandler(void)
 {
   HAL_PWREx_PVD_PVM_IRQHandler();
-}
-
-void EXTI2_IRQHandler(void)
-{
-  HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_2);
-}
-void EXTI3_IRQHandler(void)
-{
-  HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_3);
-}
-
-void EXTI9_5_IRQHandler(void)
-{
-  HAL_GPIO_EXTI_IRQHandler(D_busy_Pin);
-}
-
-void DMA1_Channel1_IRQHandler(void)
-{
-  mic_pdm_dma_irqhandler();
 }
 
 /* USER CODE END 1 */

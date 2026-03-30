@@ -27,9 +27,9 @@ Core/Src \
 Core/Startup \
 Drivers/Charger \
 Drivers/Display \
-Drivers/TMP102 \
 Drivers/RTC \
 Drivers/STM32WBxx_HAL_Driver/Src \
+Drivers/TMP102 \
 FATFS/App \
 FATFS/Target \
 Middlewares/ST/STM32_USB_Device_Library/Class/MSC/Src \

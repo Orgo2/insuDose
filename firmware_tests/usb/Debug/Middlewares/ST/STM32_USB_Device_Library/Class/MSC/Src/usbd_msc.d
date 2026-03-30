@@ -24,6 +24,8 @@ Middlewares/ST/STM32_USB_Device_Library/Class/MSC/Src/usbd_msc.o: \
  ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_adc.h \
  ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_adc_ex.h \
  ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_cortex.h \
+ ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_crc.h \
+ ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_crc_ex.h \
  ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_exti.h \
  ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_flash.h \
  ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_flash_ex.h \
@@ -46,8 +48,8 @@ Middlewares/ST/STM32_USB_Device_Library/Class/MSC/Src/usbd_msc.o: \
  ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_crs.h \
  ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_rtc.h \
  ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_rtc_ex.h \
- ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_spi.h \
- ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_spi_ex.h \
+ ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_sai.h \
+ ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_sai_ex.h \
  ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_system.h \
  ../Middlewares/ST/STM32_USB_Device_Library/Core/Inc/usbd_def.h \
  ../Middlewares/ST/STM32_USB_Device_Library/Core/Inc/usbd_ioreq.h \
@@ -80,6 +82,8 @@ Middlewares/ST/STM32_USB_Device_Library/Class/MSC/Src/usbd_msc.o: \
 ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_adc.h:
 ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_adc_ex.h:
 ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_cortex.h:
+../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_crc.h:
+../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_crc_ex.h:
 ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_exti.h:
 ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_flash.h:
 ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_flash_ex.h:
@@ -102,8 +106,8 @@ Middlewares/ST/STM32_USB_Device_Library/Class/MSC/Src/usbd_msc.o: \
 ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_crs.h:
 ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_rtc.h:
 ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_rtc_ex.h:
-../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_spi.h:
-../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_spi_ex.h:
+../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_sai.h:
+../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_sai_ex.h:
 ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_system.h:
 ../Middlewares/ST/STM32_USB_Device_Library/Core/Inc/usbd_def.h:
 ../Middlewares/ST/STM32_USB_Device_Library/Core/Inc/usbd_ioreq.h:

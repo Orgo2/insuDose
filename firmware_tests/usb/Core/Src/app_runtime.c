@@ -37,6 +37,7 @@ static bool s_mic_available = false;
 static uint8_t app_read_power_detect(void);
 static bool app_is_power_present(void);
 static bool app_is_usb_session_active(void);
+static bool app_is_mic_capture_active(void);
 static void app_pvd_init(void);
 static void app_rr_start(void);
 static void app_rr_stop(void);
@@ -117,8 +118,10 @@ void app_runtime_tick(void)
   beeper_tick();
 
   if (s_wake_lowbatt != 0u) {
-    s_wake_lowbatt = 0u;
-    charger_force_measure();
+    if (!app_is_mic_capture_active()) {
+      s_wake_lowbatt = 0u;
+      charger_force_measure();
+    }
   }
 
   if (s_mic_available && (s_dose_mic_start_pending != 0u) &&
@@ -144,9 +147,11 @@ void app_runtime_tick(void)
     }
   }
 
-  charger_task(app_is_power_present());
-  tmp102_set_enabled(!charger_should_sleep());
-  tmp102_task();
+  if (!app_is_mic_capture_active()) {
+    charger_task(app_is_power_present());
+    tmp102_set_enabled(!charger_should_sleep());
+    tmp102_task();
+  }
 
   app_usb_state_tick();
   app_buttons_tick();
@@ -176,9 +181,10 @@ void app_runtime_on_exti(uint16_t gpio_pin)
   }
 
   if (gpio_pin == Dose_Pin) {
-    if (HAL_GPIO_ReadPin(Dose_GPIO_Port, Dose_Pin) != GPIO_PIN_RESET) {
+    if (HAL_GPIO_ReadPin(Dose_GPIO_Port, Dose_Pin) == GPIO_PIN_RESET) {
       s_dose_cycle_armed = 1u;
       if (s_mic_available && !s_usb_session_active) {
+        tmp102_set_enabled(false);
         s_dose_mic_start_pending = 1u;
         s_dose_mic_stop_pending = 0u;
       }
@@ -236,6 +242,14 @@ static bool app_is_usb_session_active(void)
   }
 
   return !usbd_link_is_suspended();
+}
+
+static bool app_is_mic_capture_active(void)
+{
+  return s_mic_available &&
+         ((s_dose_mic_start_pending != 0u) ||
+          (s_dose_mic_stop_pending != 0u) ||
+          mic_pdm_is_active());
 }
 
 static void app_usb_session_enter(void)
@@ -409,7 +423,11 @@ static void app_buttons_tick(void)
 
   memset(&charger_info, 0, sizeof(charger_info));
   charger_get_info(&charger_info);
-  (void)tmp102_read_temperature_now_rounded(&logged_temp);
+  if (app_is_mic_capture_active()) {
+    (void)tmp102_get_last_temperature_rounded(&logged_temp);
+  } else {
+    (void)tmp102_read_temperature_now_rounded(&logged_temp);
+  }
   datetime_valid = rtc_driver_has_valid_datetime() && rtc_driver_get_datetime(&dose_datetime);
   log_written = append_log_rotating(dose_units, logged_temp);
   (void)log_written;
