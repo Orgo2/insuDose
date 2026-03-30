@@ -28,6 +28,8 @@ FATFS/Target/user_diskio.o: ../FATFS/Target/user_diskio.c \
  ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_flash_ex.h \
  ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_gpio.h \
  ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_gpio_ex.h \
+ ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_i2c.h \
+ ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_i2c_ex.h \
  ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_lptim.h \
  ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_pcd.h \
  ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_usb.h \
@@ -41,11 +43,16 @@ FATFS/Target/user_diskio.o: ../FATFS/Target/user_diskio.c \
  ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_bus.h \
  ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_rcc_ex.h \
  ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_crs.h \
+ ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_rtc.h \
+ ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_rtc_ex.h \
+ ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_spi.h \
+ ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_spi_ex.h \
  ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_system.h \
- C:/Users/Orgo/STM32CubeIDE/workspace_1.16.1/usb/USB_Device/Logger/logger.h \
+ ../FATFS/Target/../../USB_Device/Logger/logger.h \
  ../FATFS/App/app_fatfs.h ../Middlewares/Third_Party/FatFs/src/ff.h \
  ../FATFS/Target/user_diskio.h \
- ../Middlewares/Third_Party/FatFs/src/diskio.h
+ ../Middlewares/Third_Party/FatFs/src/diskio.h \
+ ../FATFS/Target/../../USB_Device/Logger/../../Drivers/RTC/rtc_driver.h
 ../Middlewares/Third_Party/FatFs/src/ff_gen_drv.h:
 ../Middlewares/Third_Party/FatFs/src/diskio.h:
 ../Middlewares/Third_Party/FatFs/src/integer.h:
@@ -77,6 +84,8 @@ FATFS/Target/user_diskio.o: ../FATFS/Target/user_diskio.c \
 ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_flash_ex.h:
 ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_gpio.h:
 ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_gpio_ex.h:
+../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_i2c.h:
+../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_i2c_ex.h:
 ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_lptim.h:
 ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_pcd.h:
 ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_usb.h:
@@ -90,9 +99,14 @@ FATFS/Target/user_diskio.o: ../FATFS/Target/user_diskio.c \
 ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_bus.h:
 ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_rcc_ex.h:
 ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_crs.h:
+../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_rtc.h:
+../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_rtc_ex.h:
+../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_spi.h:
+../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_spi_ex.h:
 ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_system.h:
-C:/Users/Orgo/STM32CubeIDE/workspace_1.16.1/usb/USB_Device/Logger/logger.h:
+../FATFS/Target/../../USB_Device/Logger/logger.h:
 ../FATFS/App/app_fatfs.h:
 ../Middlewares/Third_Party/FatFs/src/ff.h:
 ../FATFS/Target/user_diskio.h:
 ../Middlewares/Third_Party/FatFs/src/diskio.h:
+../FATFS/Target/../../USB_Device/Logger/../../Drivers/RTC/rtc_driver.h:

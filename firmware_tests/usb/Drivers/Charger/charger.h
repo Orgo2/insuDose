@@ -10,13 +10,14 @@
 #ifndef CHARGER_H
 #define CHARGER_H
 
-#include <stdint.h>
 #include <stdbool.h>
+#include <stdint.h>
+
 #include "main.h"
+
 #pragma once
 
-
-// -------- PINY  gpio na stns01 --------
+// -------- PINY GPIO NA STNS01 --------
 #define CHARGER_CEN_GPIO_Port   GPIOB
 #define CHARGER_CEN_Pin         GPIO_PIN_0   // PB0 -> CEN (active-HIGH)
 #define CHARGER_CHG_GPIO_Port   GPIOA
@@ -24,71 +25,161 @@
 #define CHARGER_BAT_ADC_Port    GPIOA
 #define CHARGER_BAT_ADC_Pin     GPIO_PIN_1   // PA1  -> VBAT divider
 
-// -------- LOGIKA PODĽA STNS01 --------
+// -------- LOGIKA STNS01 --------
 // CEN: active-HIGH (LOW = disable)
 #define CHARGER_CEN_ACTIVE_HIGH 1
 // CHG: active-LOW, open-drain; toggling pri fault
 #define CHARGER_CHG_ACTIVE_LOW  1
 
-// -------- STATUS KÓDY --------
-#define CHARGER_STATUS_IDLE      0  // nevie/nenabíja (VIN off alebo CEN off)
-#define CHARGER_STATUS_CHARGING  1  // nabíja (CHG = LOW)
-#define CHARGER_STATUS_FULL      2  // hotovo/standby (VIN on + CEN on + CHG=HIGH, bez togglingu)
-#define CHARGER_STATUS_FAULT     3  // chyba (CHG toggling ~1 Hz)
+// -------- STATUS KODY --------
+#define CHARGER_STATUS_IDLE      0
+#define CHARGER_STATUS_CHARGING  1
+#define CHARGER_STATUS_FULL      2
+#define CHARGER_STATUS_FAULT     3
 
-// -------- ADC (VOLITEĽNÉ) --------
-// Zapni len ak máš nakonfigurovaný hadc1 v .ioc
+// -------- KONFIGURACIA BATERIE --------
+// LiR2032 je nabijacia, ale ostava to nastavitelne v hlavicke.
+#ifndef CHARGER_BATTERY_RECHARGEABLE
+#define CHARGER_BATTERY_RECHARGEABLE 1
+#endif
+
+// Po boote a po prichode VIN drzi driver CEN chvilu v log.1.
+#ifndef CHARGER_BOOT_FORCE_ON_MS
+#define CHARGER_BOOT_FORCE_ON_MS 100u
+#endif
+
+// Ako casto sa obnovuje meranie baterie a stav chargeru.
+#ifndef CHARGER_MEASURE_PERIOD_MS
+#define CHARGER_MEASURE_PERIOD_MS 1000u
+#endif
+
+// Hysteresis nabijania:
+// - ked je CEN vypnute a bateria klesne pod START, nabijanie sa povoli
+// - ked je CEN zapnute a bateria dosiahne STOP, nabijanie sa vypne
+#ifndef CHARGER_BAT_CHARGE_START_MV
+#define CHARGER_BAT_CHARGE_START_MV 4000u
+#endif
+
+#ifndef CHARGER_BAT_CHARGE_STOP_MV
+#define CHARGER_BAT_CHARGE_STOP_MV 4100u
+#endif
+
+// LOW = stav pre upozornenie na slabu bateriu
+#ifndef CHARGER_BAT_LOW_MV
+#define CHARGER_BAT_LOW_MV 3000u
+#endif
+
+// EMPTY = kriticky stav, zariadenie sa ma ulozit a uspat
+#ifndef CHARGER_BAT_EMPTY_MV
+#define CHARGER_BAT_EMPTY_MV 2800u
+#endif
+
+// RESTORE = minimalne napatie, od ktoreho sa smie snapshot obnovit a
+// zariadenie moze pokracovat z RAM disku bez externeho napajania.
+#ifndef CHARGER_BAT_RESTORE_MV
+#define CHARGER_BAT_RESTORE_MV 3200u
+#endif
+
+#if (CHARGER_BAT_CHARGE_START_MV >= CHARGER_BAT_CHARGE_STOP_MV)
+#error "CHARGER_BAT_CHARGE_START_MV must be lower than CHARGER_BAT_CHARGE_STOP_MV"
+#endif
+
+#if (CHARGER_BAT_EMPTY_MV >= CHARGER_BAT_LOW_MV)
+#error "CHARGER_BAT_EMPTY_MV must be lower than CHARGER_BAT_LOW_MV"
+#endif
+
+#if (CHARGER_BAT_RESTORE_MV <= CHARGER_BAT_EMPTY_MV)
+#error "CHARGER_BAT_RESTORE_MV must be higher than CHARGER_BAT_EMPTY_MV"
+#endif
+
+// -------- ADC --------
 #ifndef CHARGER_USE_ADC
 #define CHARGER_USE_ADC 1
 #endif
-//zapne vnutornu  ref.
+
+// Ak je 1, VDDA sa pocita z vnutorneho VREFINT.
+// Ak je 0, pouzije sa CHARGER_VREF_MV.
 #ifndef CHARGER_USE_VREFINT
 #define CHARGER_USE_VREFINT 1
 #endif
-// PA1 ADC kanál – doplň podľa .ioc (napr. ADC_CHANNEL_6):
- #define CHARGER_ADC_CHANNEL ADC_CHANNEL_6
 
-// Referencia ADC (mV) – nastav na reálne VDDA
+#ifndef CHARGER_ADC_CHANNEL
+#define CHARGER_ADC_CHANNEL ADC_CHANNEL_6
+#endif
+
 #ifndef CHARGER_VREF_MV
-#define CHARGER_VREF_MV 3100
+#define CHARGER_VREF_MV 3100u
 #endif
 
-// delič: BAT—470k—ADC—47k—GND
+// Delic: BAT-470k-ADC-47k-GND
 #ifndef CHARGER_RTOP_OHM
-#define CHARGER_RTOP_OHM 470000
+#define CHARGER_RTOP_OHM 470000u
 #endif
+
 #ifndef CHARGER_RBOT_OHM
-#define CHARGER_RBOT_OHM 47000
+#define CHARGER_RBOT_OHM 47000u
 #endif
+
+// Zhluk informacii pre zobrazenie na displayi alebo pre aplikacnu logiku.
+typedef struct
+{
+    int32_t battery_mv;
+    float   battery_v;
+    bool    battery_valid;
+    bool    vin_present;
+    bool    charge_allowed;
+    bool    charge_enabled;
+    bool    is_charging;
+    bool    battery_low;
+    bool    battery_empty;
+    bool    battery_full;
+    bool    restore_allowed;
+    int     status;
+} charger_info_t;
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-// Inicializácia pinov; enable_on_boot=false = hneď zakáž nabíjanie (bezpečné default)
-void charger_init(bool enable_on_boot);
+// Inicializacia charger modulu.
+// Driver vzdy nastavi CEN=1 a finalny stav doriesi az po uplynuti hold casu.
+void charger_init(void);
 
-// Zapnúť/vypnúť nabíjanie (len prepíše CEN)
+// Pravidelna obsluha charger modulu.
+// Zavolaj ju z main loop a posli aktualny stav VIN/VBUS.
+void charger_task(bool vin_present);
+
+// Globalne povolenie alebo zakaz nabijania z aplikacie.
+// Boot/VIN hold ostava aktivny aj ked je nabijanie zakazane.
+void charger_set_charge_allowed(bool allow);
+bool charger_get_charge_allowed(void);
+
+// Vrati posledny zmerany a vyhodnoteny stav.
+void charger_get_info(charger_info_t *info);
+float charger_get_battery_voltage(void);
+
+bool charger_is_battery_low(void);
+bool charger_is_battery_empty(void);
+bool charger_should_sleep(void);
+bool charger_should_restore(void);
+
+// Po wake zo STOP2 vynuti nove meranie baterie pri dalsom charger_task().
+void charger_force_measure(void);
+
+// Nizkourovnove ovladanie CEN pinu.
 void charger_set_enabled(bool enable);
 
-// Rýchly status (bez blokovania a bez “fault” detekcie togglingu):
-// - vráti 1 ak CHG=LOW
-// - 2 ak VIN=true && enable=true && CHG=HIGH
-// - inak 0
+// Stav CHG/CEN pre rychlu diagnostiku.
 int charger_get_status_fast(bool vin_present);
-
-// Presná detekcia vrátane “fault” (pozoruje CHG toggling do observe_ms; odporúčam >=1200 ms):
 int charger_get_status_blocking(bool vin_present, uint32_t observe_ms);
+bool charger_is_charging_fast(void);
 
-// Pomôcky:
-bool charger_is_charging_fast(void);     // ekvivalent (CHG=LOW ?)
-int32_t charger_read_bat(void);  // vráti -1, ak CHARGER_USE_ADC=0
+// Okamzite meranie baterie v mV. Pri vypnutom ADC vrati -1.
+int32_t charger_read_bat(void);
 
 #ifdef __cplusplus
 }
 #endif
+
 #endif // CHARGER_H
-
-
-
 #endif /* CHARGER_CHARGER_H_ */

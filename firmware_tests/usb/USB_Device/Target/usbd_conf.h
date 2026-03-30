@@ -34,6 +34,7 @@
 #include "stm32wbxx_hal.h"
 
 /* USER CODE BEGIN INCLUDE */
+#include <stdbool.h>
 
 /* USER CODE END INCLUDE */
 
@@ -155,6 +156,11 @@
 /* Exported functions -------------------------------------------------------*/
 void *USBD_static_malloc(uint32_t size);
 void USBD_static_free(void *p);
+void usbd_link_state_reset(void);
+void usbd_link_force_disconnect(void);
+bool usbd_link_is_connected(void);
+bool usbd_link_is_suspended(void);
+bool usbd_link_has_recent_activity(uint32_t timeout_ms);
 
 /**
   * @}

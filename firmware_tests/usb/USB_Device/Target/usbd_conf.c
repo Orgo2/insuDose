@@ -37,6 +37,9 @@
 
 /* Private variables ---------------------------------------------------------*/
 /* USER CODE BEGIN PV */
+static volatile uint8_t s_usb_link_connected = 0u;
+static volatile uint8_t s_usb_link_suspended = 0u;
+static volatile uint32_t s_usb_link_last_activity_ms = 0u;
 
 /* USER CODE END PV */
 
@@ -44,6 +47,43 @@ PCD_HandleTypeDef hpcd_USB_FS;
 void Error_Handler(void);
 
 /* USER CODE BEGIN 0 */
+static void usbd_link_note_activity(void)
+{
+  s_usb_link_connected = 1u;
+  s_usb_link_suspended = 0u;
+  s_usb_link_last_activity_ms = HAL_GetTick();
+}
+
+void usbd_link_state_reset(void)
+{
+  s_usb_link_connected = 0u;
+  s_usb_link_suspended = 0u;
+  s_usb_link_last_activity_ms = 0u;
+}
+
+void usbd_link_force_disconnect(void)
+{
+  usbd_link_state_reset();
+}
+
+bool usbd_link_is_connected(void)
+{
+  return (s_usb_link_connected != 0u);
+}
+
+bool usbd_link_is_suspended(void)
+{
+  return (s_usb_link_suspended != 0u);
+}
+
+bool usbd_link_has_recent_activity(uint32_t timeout_ms)
+{
+  if ((s_usb_link_connected == 0u) || (s_usb_link_suspended != 0u)) {
+    return false;
+  }
+
+  return ((uint32_t)(HAL_GetTick() - s_usb_link_last_activity_ms) <= timeout_ms);
+}
 
 /* USER CODE END 0 */
 
@@ -155,6 +195,7 @@ void HAL_PCD_SetupStageCallback(PCD_HandleTypeDef *hpcd)
 #endif /* USE_HAL_PCD_REGISTER_CALLBACKS */
 {
   /* USER CODE BEGIN HAL_PCD_SetupStageCallback_PreTreatment */
+  usbd_link_note_activity();
 
   /* USER CODE END  HAL_PCD_SetupStageCallback_PreTreatment */
   USBD_LL_SetupStage((USBD_HandleTypeDef*)hpcd->pData, (uint8_t *)hpcd->Setup);
@@ -176,6 +217,7 @@ void HAL_PCD_DataOutStageCallback(PCD_HandleTypeDef *hpcd, uint8_t epnum)
 #endif /* USE_HAL_PCD_REGISTER_CALLBACKS */
 {
   /* USER CODE BEGIN HAL_PCD_DataOutStageCallback_PreTreatment */
+  usbd_link_note_activity();
 
   /* USER CODE END HAL_PCD_DataOutStageCallback_PreTreatment */
   USBD_LL_DataOutStage((USBD_HandleTypeDef*)hpcd->pData, epnum, hpcd->OUT_ep[epnum].xfer_buff);
@@ -197,6 +239,7 @@ void HAL_PCD_DataInStageCallback(PCD_HandleTypeDef *hpcd, uint8_t epnum)
 #endif /* USE_HAL_PCD_REGISTER_CALLBACKS */
 {
   /* USER CODE BEGIN HAL_PCD_DataInStageCallback_PreTreatment */
+  usbd_link_note_activity();
 
   /* USER CODE END HAL_PCD_DataInStageCallback_PreTreatment */
   USBD_LL_DataInStage((USBD_HandleTypeDef*)hpcd->pData, epnum, hpcd->IN_ep[epnum].xfer_buff);
@@ -217,6 +260,7 @@ void HAL_PCD_SOFCallback(PCD_HandleTypeDef *hpcd)
 #endif /* USE_HAL_PCD_REGISTER_CALLBACKS */
 {
   /* USER CODE BEGIN HAL_PCD_SOFCallback_PreTreatment */
+  usbd_link_note_activity();
 
   /* USER CODE END HAL_PCD_SOFCallback_PreTreatment */
   USBD_LL_SOF((USBD_HandleTypeDef*)hpcd->pData);
@@ -237,6 +281,7 @@ void HAL_PCD_ResetCallback(PCD_HandleTypeDef *hpcd)
 #endif /* USE_HAL_PCD_REGISTER_CALLBACKS */
 {
   /* USER CODE BEGIN HAL_PCD_ResetCallback_PreTreatment */
+  usbd_link_note_activity();
 
   /* USER CODE END HAL_PCD_ResetCallback_PreTreatment */
   USBD_SpeedTypeDef speed = USBD_SPEED_FULL;
@@ -268,6 +313,8 @@ void HAL_PCD_SuspendCallback(PCD_HandleTypeDef *hpcd)
 #endif /* USE_HAL_PCD_REGISTER_CALLBACKS */
 {
   /* USER CODE BEGIN HAL_PCD_SuspendCallback_PreTreatment */
+  s_usb_link_connected = 1u;
+  s_usb_link_suspended = 1u;
 
   /* USER CODE END HAL_PCD_SuspendCallback_PreTreatment */
   /* Inform USB library that core enters in suspend Mode. */
@@ -298,6 +345,7 @@ void HAL_PCD_ResumeCallback(PCD_HandleTypeDef *hpcd)
 #endif /* USE_HAL_PCD_REGISTER_CALLBACKS */
 {
   /* USER CODE BEGIN HAL_PCD_ResumeCallback_PreTreatment */
+  usbd_link_note_activity();
 
   /* USER CODE END HAL_PCD_ResumeCallback_PreTreatment */
 
@@ -370,6 +418,7 @@ void HAL_PCD_ConnectCallback(PCD_HandleTypeDef *hpcd)
 #endif /* USE_HAL_PCD_REGISTER_CALLBACKS */
 {
   /* USER CODE BEGIN HAL_PCD_ConnectCallback_PreTreatment */
+  usbd_link_note_activity();
 
   /* USER CODE END HAL_PCD_ConnectCallback_PreTreatment */
   USBD_LL_DevConnected((USBD_HandleTypeDef*)hpcd->pData);
@@ -390,6 +439,7 @@ void HAL_PCD_DisconnectCallback(PCD_HandleTypeDef *hpcd)
 #endif /* USE_HAL_PCD_REGISTER_CALLBACKS */
 {
   /* USER CODE BEGIN HAL_PCD_DisconnectCallback_PreTreatment */
+  usbd_link_state_reset();
 
   /* USER CODE END HAL_PCD_DisconnectCallback_PreTreatment */
   USBD_LL_DevDisconnected((USBD_HandleTypeDef*)hpcd->pData);
@@ -424,10 +474,11 @@ USBD_StatusTypeDef USBD_LL_Init(USBD_HandleTypeDef *pdev)
   hpcd_USB_FS.Init.dev_endpoints = 8;
   hpcd_USB_FS.Init.speed = PCD_SPEED_FULL;
   hpcd_USB_FS.Init.phy_itface = PCD_PHY_EMBEDDED;
-  hpcd_USB_FS.Init.Sof_enable = DISABLE;
+  hpcd_USB_FS.Init.Sof_enable = ENABLE;
   hpcd_USB_FS.Init.low_power_enable = DISABLE;
   hpcd_USB_FS.Init.lpm_enable = DISABLE;
   hpcd_USB_FS.Init.battery_charging_enable = DISABLE;
+  usbd_link_state_reset();
 
   #if (USE_HAL_PCD_REGISTER_CALLBACKS == 1U)
   /* register Msp Callbacks (before the Init) */

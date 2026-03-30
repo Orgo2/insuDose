@@ -23,14 +23,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "logger.h"
-#include "usbd_core.h"
-#include "usbd_def.h"
-#include "charger.h"
-#include "ff.h"         // kvôli f_mount
-#include "stm32wbxx_hal.h"
-
-extern USBD_HandleTypeDef hUsbDeviceFS;  // z usb_device.c
+#include "app_runtime.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -40,7 +33,6 @@ extern USBD_HandleTypeDef hUsbDeviceFS;  // z usb_device.c
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -51,28 +43,15 @@ extern USBD_HandleTypeDef hUsbDeviceFS;  // z usb_device.c
 /* Private variables ---------------------------------------------------------*/
 ADC_HandleTypeDef hadc1;
 
+I2C_HandleTypeDef hi2c1;
+
 LPTIM_HandleTypeDef hlptim1;
 
+RTC_HandleTypeDef hrtc;
+
+SPI_HandleTypeDef hspi1;
+
 /* USER CODE BEGIN PV */
-typedef enum {
-  SYS_RUNNING,      // round-robin beží, USB vypnuté
-  SYS_USB_SWITCH,   // prechod po zmene VBUS (debounce + prepínač)
-  SYS_USB_ACTIVE    // MSC aktívne, round-robin stojí
-} sys_state_t;
-
-static volatile sys_state_t g_state = SYS_RUNNING;
-static volatile uint8_t  g_vbus_present = 0;
-static volatile uint32_t g_vbus_last_change_ms = 0;
-static uint8_t usb_started = 0;
-static volatile uint8_t dose_irq = 0;
-static volatile uint8_t beep_request = 0; //test button
-
-// informujeme logger, či je USB aktívne (aby počas MSC nezapisoval)
-extern void logger_set_usb_active(bool active);
-//usb flag na sleepmode
-static volatile uint8_t s_usb_active = 0;
-//low battery measurement flag
-static volatile uint8_t g_wake_lowbatt = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -81,25 +60,13 @@ void PeriphCommonClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_LPTIM1_Init(void);
 static void MX_ADC1_Init(void);
+static void MX_RTC_Init(void);
+static void MX_I2C1_Init(void);
 /* USER CODE BEGIN PFP */
-
-void PlayBeep(uint32_t duration_ms);
-
-// Stavový automat + helpery
-static void App_StateMachine_Tick(void);
-static void Buttons_Tick(void);
-static void rr_start(void);		///zapne roundrobin(nenapisane)
-static void rr_stop(void);
-static void usb_enter(void);	//funkcia na usb inicializaciu
-static void usb_leave(void);	//funkcia usb deinit
-static void power_set_usb_active(bool on);	//low power mod na usb
-static void power_sleep_until_event(void);	//sleepmod stop2
-static void PVD_Init(void);		//detekcia slabej baterky
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-
 /* USER CODE END 0 */
 
 /**
@@ -133,45 +100,17 @@ int main(void)
   /* USER CODE END SysInit */
 
   /* Initialize all configured peripherals */
-  //__HAL_RCC_SYSCFG_CLK_ENABLE();
   MX_GPIO_Init();
-  //MX_USB_Device_Init();
   MX_LPTIM1_Init();
   if (MX_FATFS_Init() != APP_OK) {
     Error_Handler();
   }
   MX_ADC1_Init();
+  MX_RTC_Init();
+  MX_I2C1_Init();
   /* USER CODE BEGIN 2 */
-  //PlayBeep(500);
-
-  charger_init(false);	//vypne nabijanie aby bolo mozne pracovat s nenabijacou bateriou
-
-  // RAM disk: obnov len ak je naozaj prázdny, inak len pripoj
-  if (logger_ramdisk_is_empty()) {
-      if (logger_restore_ramdisk_from_flash()) {
-          (void)f_mount(&USERFatFs, "0:", 1);
-      } else {
-          init_ramdisk();
-      }
-  } else {
-      (void)f_mount(&USERFatFs, "0:", 1);
-  }
-
-  PVD_Init();
-
-  // Inicializovať usbMSC alebo datalogger podľa VBUS (PE4: 1 = pripojené USB)
-  g_vbus_present = HAL_GPIO_ReadPin(GPIOE, GPIO_PIN_4) ? 1U : 0U;
-  g_vbus_last_change_ms = HAL_GetTick();
-
-  if (g_vbus_present) {
-    rr_stop();
-    usb_enter();                   // spustí USB MSC
-    logger_set_usb_active(true);   // logger nebude zapisovať
-    g_state = SYS_USB_ACTIVE;
-  } else {
-    logger_set_usb_active(false);
-    rr_start();
-    g_state = SYS_RUNNING;
+  if (!app_runtime_init(&hi2c1, &hlptim1)) {
+    Error_Handler();
   }
   /* USER CODE END 2 */
 
@@ -182,29 +121,7 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	  if (beep_request) { beep_request = 0; PlayBeep(40); } //testovanie prerusenia
-
-	  // --- LOW BATTERY PATH ---
-	  if (g_wake_lowbatt) {
-	    g_wake_lowbatt = 0;
-
-	    int32_t mv = charger_read_bat();   // vráti -1 ak CHARGER_USE_ADC=0
-	    if (mv < 0 || mv < 2800) {
-	      // Ulož RAM disk do FLASH a zneplatni RAM FS, aby sa po VBUS obnovil zo snapshotu
-	      if (logger_persist_ramdisk_to_flash()) {
-	        logger_invalidate_ramdisk();
-	      }
-
-	      // Prejdi do úsporného režimu a čakaj na udalosť (napr. pripojenie USB)
-
-	      power_sleep_until_event();
-	      continue;  // preskoč zvyšok iterácie
-	    }
-	  }
-	  ////po stlaceni tlacidla dose nahra jeden riadok kodu
-	  App_StateMachine_Tick();
-	   Buttons_Tick();
-	   power_sleep_until_event();   // namiesto HAL_Delay(10)
+    app_runtime_tick();
   }
   /* USER CODE END 3 */
 }
@@ -267,6 +184,10 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
+
+  /** Enables the Clock Security System
+  */
+  HAL_RCCEx_EnableLSECSS();
 
   /** Enable MSI Auto calibration
   */
@@ -355,6 +276,54 @@ static void MX_ADC1_Init(void)
 }
 
 /**
+  * @brief I2C1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_I2C1_Init(void)
+{
+
+  /* USER CODE BEGIN I2C1_Init 0 */
+
+  /* USER CODE END I2C1_Init 0 */
+
+  /* USER CODE BEGIN I2C1_Init 1 */
+
+  /* USER CODE END I2C1_Init 1 */
+  hi2c1.Instance = I2C1;
+  hi2c1.Init.Timing = 0x10503EF9;
+  hi2c1.Init.OwnAddress1 = 0;
+  hi2c1.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
+  hi2c1.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
+  hi2c1.Init.OwnAddress2 = 0;
+  hi2c1.Init.OwnAddress2Masks = I2C_OA2_NOMASK;
+  hi2c1.Init.GeneralCallMode = I2C_GENERALCALL_DISABLE;
+  hi2c1.Init.NoStretchMode = I2C_NOSTRETCH_DISABLE;
+  if (HAL_I2C_Init(&hi2c1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /** Configure Analogue filter
+  */
+  if (HAL_I2CEx_ConfigAnalogFilter(&hi2c1, I2C_ANALOGFILTER_ENABLE) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /** Configure Digital filter
+  */
+  if (HAL_I2CEx_ConfigDigitalFilter(&hi2c1, 0) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN I2C1_Init 2 */
+
+  /* USER CODE END I2C1_Init 2 */
+
+}
+
+/**
   * @brief LPTIM1 Initialization Function
   * @param None
   * @retval None
@@ -389,6 +358,96 @@ static void MX_LPTIM1_Init(void)
 }
 
 /**
+  * @brief RTC Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_RTC_Init(void)
+{
+
+  /* USER CODE BEGIN RTC_Init 0 */
+
+  /* USER CODE END RTC_Init 0 */
+
+  RTC_TimeTypeDef sTime = {0};
+  RTC_DateTypeDef sDate = {0};
+  RTC_AlarmTypeDef sAlarm = {0};
+
+  /* USER CODE BEGIN RTC_Init 1 */
+
+  /* USER CODE END RTC_Init 1 */
+
+  /** Initialize RTC Only
+  */
+  hrtc.Instance = RTC;
+  hrtc.Init.HourFormat = RTC_HOURFORMAT_24;
+  hrtc.Init.AsynchPrediv = 127;
+  hrtc.Init.SynchPrediv = 255;
+  hrtc.Init.OutPut = RTC_OUTPUT_DISABLE;
+  hrtc.Init.OutPutPolarity = RTC_OUTPUT_POLARITY_HIGH;
+  hrtc.Init.OutPutType = RTC_OUTPUT_TYPE_OPENDRAIN;
+  hrtc.Init.OutPutRemap = RTC_OUTPUT_REMAP_NONE;
+  if (HAL_RTC_Init(&hrtc) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /* USER CODE BEGIN Check_RTC_BKUP */
+
+  /* USER CODE END Check_RTC_BKUP */
+
+  /** Initialize RTC and set the Time and Date
+  */
+  sTime.Hours = 0x0;
+  sTime.Minutes = 0x0;
+  sTime.Seconds = 0x0;
+  sTime.SubSeconds = 0x0;
+  sTime.DayLightSaving = RTC_DAYLIGHTSAVING_NONE;
+  sTime.StoreOperation = RTC_STOREOPERATION_RESET;
+  if (HAL_RTC_SetTime(&hrtc, &sTime, RTC_FORMAT_BCD) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sDate.WeekDay = RTC_WEEKDAY_MONDAY;
+  sDate.Month = RTC_MONTH_JANUARY;
+  sDate.Date = 0x1;
+  sDate.Year = 0x0;
+  if (HAL_RTC_SetDate(&hrtc, &sDate, RTC_FORMAT_BCD) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /** Enable the Alarm A
+  */
+  sAlarm.AlarmTime.Hours = 0x0;
+  sAlarm.AlarmTime.Minutes = 0x0;
+  sAlarm.AlarmTime.Seconds = 0x0;
+  sAlarm.AlarmTime.SubSeconds = 0x0;
+  sAlarm.AlarmTime.DayLightSaving = RTC_DAYLIGHTSAVING_NONE;
+  sAlarm.AlarmTime.StoreOperation = RTC_STOREOPERATION_RESET;
+  sAlarm.AlarmMask = RTC_ALARMMASK_NONE;
+  sAlarm.AlarmSubSecondMask = RTC_ALARMSUBSECONDMASK_ALL;
+  sAlarm.AlarmDateWeekDaySel = RTC_ALARMDATEWEEKDAYSEL_DATE;
+  sAlarm.AlarmDateWeekDay = 0x1;
+  sAlarm.Alarm = RTC_ALARM_A;
+  if (HAL_RTC_SetAlarm_IT(&hrtc, &sAlarm, RTC_FORMAT_BCD) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /** Enable the WakeUp
+  */
+  if (HAL_RTCEx_SetWakeUpTimer_IT(&hrtc, 0, RTC_WAKEUPCLOCK_RTCCLK_DIV16) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN RTC_Init 2 */
+
+  /* USER CODE END RTC_Init 2 */
+
+}
+
+/**
   * @brief GPIO Initialization Function
   * @param None
   * @retval None
@@ -397,36 +456,89 @@ static void MX_GPIO_Init(void)
 {
   GPIO_InitTypeDef GPIO_InitStruct = {0};
   /* USER CODE BEGIN MX_GPIO_Init_1 */
- __HAL_RCC_GPIOE_CLK_ENABLE();  // kvôli PE4 (VBUS sense)
+ //__HAL_RCC_GPIOE_CLK_ENABLE();  // kvôli PE4 (VBUS sense)
   /* USER CODE END MX_GPIO_Init_1 */
 
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOC_CLK_ENABLE();
-  __HAL_RCC_GPIOA_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
+  __HAL_RCC_GPIOA_CLK_ENABLE();
+  __HAL_RCC_GPIOE_CLK_ENABLE();
 
-  /*Configure GPIO pin : PA0 */
-  GPIO_InitStruct.Pin = GPIO_PIN_0;
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(Temp_PWR_GPIO_Port, Temp_PWR_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(Mic_PWR_GPIO_Port, Mic_PWR_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(D_cs_GPIO_Port, D_cs_Pin, GPIO_PIN_SET);
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(CH_cen_GPIO_Port, CH_cen_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(D_dc_GPIO_Port, D_dc_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(D_rst_GPIO_Port, D_rst_Pin, GPIO_PIN_SET);
+
+  /*Configure GPIO pins : Enter_Pin Overtemp_Pin Esc_Pin List_Pin */
+  GPIO_InitStruct.Pin = Enter_Pin|Overtemp_Pin|Esc_Pin|List_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_PULLUP;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  /* USER CODE BEGIN MX_GPIO_Init_2 */
-  // PA2 = DOSE (všetky tlačidlá proti GND → potrebuje PULLUP)
-  GPIO_InitStruct.Pin  = GPIO_PIN_2;
-  GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
-  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  /*Configure GPIO pins : Temp_PWR_Pin Mic_PWR_Pin D_cs_Pin */
+  GPIO_InitStruct.Pin = Temp_PWR_Pin|Mic_PWR_Pin|D_cs_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  // PE4 = VBUS sense, EXTI na obe hrany
-  GPIO_InitStruct.Pin  = GPIO_PIN_4;
+  /*Configure GPIO pins : CH_cen_Pin D_dc_Pin D_rst_Pin */
+  GPIO_InitStruct.Pin = CH_cen_Pin|D_dc_Pin|D_rst_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : Power_Detect_Pin */
+  GPIO_InitStruct.Pin = Power_Detect_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING_FALLING;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
+  HAL_GPIO_Init(Power_Detect_GPIO_Port, &GPIO_InitStruct);
 
-  // NVIC pre EXTI4
-  HAL_NVIC_SetPriority(EXTI4_IRQn, 5, 0);
+  /*Configure GPIO pin : Ch_chg_Pin */
+  GPIO_InitStruct.Pin = Ch_chg_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(Ch_chg_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : D_busy_Pin */
+  GPIO_InitStruct.Pin = D_busy_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  HAL_GPIO_Init(D_busy_GPIO_Port, &GPIO_InitStruct);
+
+  /* EXTI interrupt init*/
+  HAL_NVIC_SetPriority(EXTI4_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(EXTI4_IRQn);
+
+  /* USER CODE BEGIN MX_GPIO_Init_2 */
+  // PA0 = ENTER (tlačidlo proti GND -> pull-up + zostupna hrana)
+  GPIO_InitStruct.Pin  = Enter_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  HAL_GPIO_Init(Enter_GPIO_Port, &GPIO_InitStruct);
+
+  // PA2 = DOSE (všetky tlačidlá proti GND → potrebuje PULLUP)
+  GPIO_InitStruct.Pin  = Dose_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING_FALLING;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  HAL_GPIO_Init(Dose_GPIO_Port, &GPIO_InitStruct);
+
+  GPIO_InitStruct.Pin  = Temp_Alert_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING_FALLING;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  HAL_GPIO_Init(Temp_Alert_GPIO_Port, &GPIO_InitStruct);
+
+  HAL_NVIC_SetPriority(EXTI3_IRQn, 5, 0);
+  HAL_NVIC_EnableIRQ(EXTI3_IRQn);
+  HAL_NVIC_SetPriority(EXTI0_IRQn, 5, 0);
+  HAL_NVIC_EnableIRQ(EXTI0_IRQn);
   // NVIC pre EXTI2 (PA2)
   HAL_NVIC_SetPriority(EXTI2_IRQn, 5, 0);
   HAL_NVIC_EnableIRQ(EXTI2_IRQn);
@@ -434,161 +546,28 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-/////////////////piezo function/////////////////
-void PlayBeep(uint32_t duration_ms) {
-	uint32_t period = 15;  // 4 kHz (f=clk 4MHz/999) alebo 32khz/8
-	uint32_t pulse = 8;   // 50% duty cycle (D=pulse/period)
-	// Spusti časovač na generovanie PWM
-    HAL_LPTIM_PWM_Start(&hlptim1, period, pulse);
-
-    // Čakaj, kým uplynie trvanie zvuku
-    HAL_Delay(duration_ms);
-
-    // Zastav časovač
-    HAL_LPTIM_PWM_Stop(&hlptim1);
+void HAL_RTCEx_WakeUpTimerEventCallback(RTC_HandleTypeDef *rtc)
+{
+  (void)rtc;
+  app_runtime_on_rtc_wakeup();
 }
 
-// --- VBUS EXTI callback s debounce (~20 ms) ---
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
-  if (GPIO_Pin == GPIO_PIN_4) { // PE4
-    uint32_t now = HAL_GetTick();
-    if ((now - g_vbus_last_change_ms) < 20) return; // debounce
-    g_vbus_last_change_ms = now;
-
-    g_vbus_present = HAL_GPIO_ReadPin(GPIOE, GPIO_PIN_4) ? 1U : 0U;
-    g_state = SYS_USB_SWITCH;
-  }
-  if (GPIO_Pin == GPIO_PIN_2) {   // DOSE
-    dose_irq = 1; beep_request = 1;
-    return;
-   }
-
+  app_runtime_on_exti(GPIO_Pin);
 }
 
-// --- Stavový automat: prepína RUNNING <-> USB_ACTIVE ---
-static void App_StateMachine_Tick(void)
-{
-  switch (g_state) {
-    case SYS_RUNNING:
-      // bežná prevádzka, logovanie povolené
-      break;
-
-    case SYS_USB_SWITCH:
-      if (g_vbus_present) {
-        rr_stop();
-        usb_enter();
-        logger_set_usb_active(true);
-        g_state = SYS_USB_ACTIVE;
-      } else {
-        usb_leave();
-        logger_set_usb_active(false);
-        rr_start();
-        g_state = SYS_RUNNING;
-      }
-      break;
-
-    case SYS_USB_ACTIVE:
-      // MSC beží, logovanie je pozastavené (logger to vie z flagu)
-      break;
-  }
-}
-
-// --- Čítanie DOSE (PA2). Stlačenie = jeden záznam (1u, fixný čas/teplota) ---
-static void Buttons_Tick(void)
-{
-  if (!dose_irq) return;
-  dose_irq = 0;
-
-  if (g_state == SYS_RUNNING) {
-    append_log_rotating(LOG_NO_YEAR, LOG_NO_U8, LOG_NO_U8, LOG_NO_U8, LOG_NO_U8,
-                        1, LOG_NO_TEMP);
-    PlayBeep(40);
-  }
-  // (voliteľné) ak chceš pípnuť aj pri USB:
-   else { PlayBeep(40); }
-}
-
-// --- Hooky: USB start/stop & RR start/stop ---
-static void usb_enter(void)
-{
-  if (!usb_started) {
-    // ak je RAM disk prázdny, skús ho obnoviť zo snapshotu
-    if (logger_ramdisk_is_empty()) {
-      (void)logger_restore_ramdisk_from_flash();
-      // (voliteľné) (void)f_mount(&USERFatFs, "0:", 1);
-    }
-    MX_USB_Device_Init();
-    usb_started = 1;
-    power_set_usb_active(true);
-  }
-}
-
-static void usb_leave(void)
-{
-  if (usb_started) {
-    USBD_Stop(&hUsbDeviceFS);
-    usb_started = 0;
-    power_set_usb_active(false);
-  }
-}
-
-static void rr_start(void)
-{
-  // TODO: sem pridaj spúšťanie tvojho round-robin (časovače/refresh displeja...)
-}
-
-static void rr_stop(void)
-{
-  // TODO: sem pridaj zastavenie round-robin + prípadné uloženie UI stavu
-}
-	//usb aktivny, nastav1 stavovy automat??
-static void power_set_usb_active(bool on) { s_usb_active = on ? 1 : 0; }
-	//funkcia na nastavovanie sleepmodov///
-
-static void power_sleep_until_event(void)
-{
-  if (s_usb_active) {            // keď je USB pripojené, stačí ľahký spánok
-    __WFI();
-    return;
-  }
-  HAL_SuspendTick(); //stop systic to prevent cpu wakeup
-  HAL_PWREx_EnterSTOP2Mode(PWR_SLEEPENTRY_WFI);
-  HAL_ResumeTick();
- // SCB->SCR |= SCB_SCR_SLEEPDEEP_Msk;              // STOP2
-  //HAL_PWREx_EnterSTOP2Mode(PWR_STOPENTRY_WFI);    // wake: EXTI (DOSE/OVERTEMP/VBUS...)
-  //SCB->SCR &= ~SCB_SCR_SLEEPDEEP_Msk;
-  //SystemClock_Config();                           // obnov hodiny po STOP2
-  //__WFI();  //pe pripad ze zalomitkujeme ostatne mozeme skusit toto
-  return;
-}
-//kod na detekciu slabej baterie//
-static void PVD_Init(void)
-{
-	return; // DOČASNE: vypni PVD/undervoltage. (Zrušíš zmazaním tohto riadka.)
-	  // ... zvyšok pôvodnej PVD_Init() nechaj nedotknutý
-  PWR_PVDTypeDef cfg = {0};
-  cfg.PVDLevel = PWR_PVDLEVEL_6;
-  cfg.Mode     = PWR_PVD_MODE_IT_RISING_FALLING;
-  HAL_PWR_ConfigPVD(&cfg);
-  HAL_PWR_EnablePVD();
-
-  HAL_NVIC_SetPriority(PVD_PVM_IRQn, 5, 0);
-  HAL_NVIC_EnableIRQ(PVD_PVM_IRQn);
-}
-
-
-// Callback (HAL volá jeden z nich; necháme oba, nech to skompiluje na WB bez .ioc zásahu):
 void HAL_PWR_PVDCallback(void)
 {
-  g_wake_lowbatt = 1;
+  app_runtime_on_pvd();
 }
 
 void HAL_PWREx_PVD_PVMCallback(PWR_PVMTypeDef PVD_PVM)
 {
   (void)PVD_PVM;
-  g_wake_lowbatt = 1;
+  app_runtime_on_pvd();
 }
+
 /* USER CODE END 4 */
 
 /**

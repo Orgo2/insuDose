@@ -22,6 +22,7 @@
 #include "stm32wbxx_it.h"
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "mic_pdm.h"
 
 /* USER CODE END Includes */
 
@@ -57,6 +58,8 @@
 
 /* External variables --------------------------------------------------------*/
 extern PCD_HandleTypeDef hpcd_USB_FS;
+extern RTC_HandleTypeDef hrtc;
+extern SPI_HandleTypeDef hspi1;
 /* USER CODE BEGIN EV */
 
 /* USER CODE END EV */
@@ -200,6 +203,34 @@ void SysTick_Handler(void)
 /******************************************************************************/
 
 /**
+  * @brief This function handles RTC wake-up interrupt through EXTI line 19.
+  */
+void RTC_WKUP_IRQHandler(void)
+{
+  /* USER CODE BEGIN RTC_WKUP_IRQn 0 */
+
+  /* USER CODE END RTC_WKUP_IRQn 0 */
+  HAL_RTCEx_WakeUpTimerIRQHandler(&hrtc);
+  /* USER CODE BEGIN RTC_WKUP_IRQn 1 */
+
+  /* USER CODE END RTC_WKUP_IRQn 1 */
+}
+
+/**
+  * @brief This function handles EXTI line4 interrupt.
+  */
+void EXTI4_IRQHandler(void)
+{
+  /* USER CODE BEGIN EXTI4_IRQn 0 */
+
+  /* USER CODE END EXTI4_IRQn 0 */
+  HAL_GPIO_EXTI_IRQHandler(Power_Detect_Pin);
+  /* USER CODE BEGIN EXTI4_IRQn 1 */
+
+  /* USER CODE END EXTI4_IRQn 1 */
+}
+
+/**
   * @brief This function handles USB low priority interrupt, USB wake-up interrupt through EXTI line 28.
   */
 void USB_LP_IRQHandler(void)
@@ -213,11 +244,40 @@ void USB_LP_IRQHandler(void)
   /* USER CODE END USB_LP_IRQn 1 */
 }
 
-/* USER CODE BEGIN 1 */
-void EXTI4_IRQHandler(void)
+/**
+  * @brief This function handles SPI1 global interrupt.
+  */
+void SPI1_IRQHandler(void)
 {
-  HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_4); // zavolá HAL_GPIO_EXTI_Callback v main.c
+  /* USER CODE BEGIN SPI1_IRQn 0 */
+
+  /* USER CODE END SPI1_IRQn 0 */
+  HAL_SPI_IRQHandler(&hspi1);
+  /* USER CODE BEGIN SPI1_IRQn 1 */
+
+  /* USER CODE END SPI1_IRQn 1 */
 }
+
+/**
+  * @brief This function handles RTC A and B alarm interrupt through EXTI line 17.
+  */
+void RTC_Alarm_IRQHandler(void)
+{
+  /* USER CODE BEGIN RTC_Alarm_IRQn 0 */
+
+  /* USER CODE END RTC_Alarm_IRQn 0 */
+  HAL_RTC_AlarmIRQHandler(&hrtc);
+  /* USER CODE BEGIN RTC_Alarm_IRQn 1 */
+
+  /* USER CODE END RTC_Alarm_IRQn 1 */
+}
+
+/* USER CODE BEGIN 1 */
+void EXTI0_IRQHandler(void)
+{
+  HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_0);
+}
+
 
 void PVD_PVM_IRQHandler(void)
 {
@@ -228,4 +288,19 @@ void EXTI2_IRQHandler(void)
 {
   HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_2);
 }
+void EXTI3_IRQHandler(void)
+{
+  HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_3);
+}
+
+void EXTI9_5_IRQHandler(void)
+{
+  HAL_GPIO_EXTI_IRQHandler(D_busy_Pin);
+}
+
+void DMA1_Channel1_IRQHandler(void)
+{
+  mic_pdm_dma_irqhandler();
+}
+
 /* USER CODE END 1 */

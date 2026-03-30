@@ -24,6 +24,8 @@ Core/Src/main.o: ../Core/Src/main.c ../Core/Inc/main.h \
  ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_flash_ex.h \
  ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_gpio.h \
  ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_gpio_ex.h \
+ ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_i2c.h \
+ ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_i2c_ex.h \
  ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_lptim.h \
  ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_pcd.h \
  ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_usb.h \
@@ -37,6 +39,10 @@ Core/Src/main.o: ../Core/Src/main.c ../Core/Inc/main.h \
  ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_bus.h \
  ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_rcc_ex.h \
  ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_crs.h \
+ ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_rtc.h \
+ ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_rtc_ex.h \
+ ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_spi.h \
+ ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_spi_ex.h \
  ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_system.h \
  ../FATFS/App/app_fatfs.h ../Middlewares/Third_Party/FatFs/src/ff.h \
  ../Middlewares/Third_Party/FatFs/src/integer.h ../FATFS/Target/ffconf.h \
@@ -46,14 +52,8 @@ Core/Src/main.o: ../Core/Src/main.c ../Core/Inc/main.h \
  ../Middlewares/Third_Party/FatFs/src/diskio.h \
  ../USB_Device/App/usb_device.h \
  ../Middlewares/ST/STM32_USB_Device_Library/Core/Inc/usbd_def.h \
- ../USB_Device/Target/usbd_conf.h \
- C:/Users/Orgo/STM32CubeIDE/workspace_1.16.1/usb/USB_Device/Logger/logger.h \
- ../Middlewares/ST/STM32_USB_Device_Library/Core/Inc/usbd_core.h \
- ../Middlewares/ST/STM32_USB_Device_Library/Core/Inc/usbd_def.h \
- ../Middlewares/ST/STM32_USB_Device_Library/Core/Inc/usbd_ioreq.h \
- ../Middlewares/ST/STM32_USB_Device_Library/Core/Inc/usbd_core.h \
- ../Middlewares/ST/STM32_USB_Device_Library/Core/Inc/usbd_ctlreq.h \
- C:/Users/Orgo/STM32CubeIDE/workspace_1.16.1/usb/Drivers/Charger/charger.h
+ ../USB_Device/Target/usbd_conf.h ../Core/Inc/app_runtime.h \
+ ../Core/Inc/main.h
 ../Core/Inc/main.h:
 ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal.h:
 ../Core/Inc/stm32wbxx_hal_conf.h:
@@ -80,6 +80,8 @@ Core/Src/main.o: ../Core/Src/main.c ../Core/Inc/main.h \
 ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_flash_ex.h:
 ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_gpio.h:
 ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_gpio_ex.h:
+../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_i2c.h:
+../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_i2c_ex.h:
 ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_lptim.h:
 ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_pcd.h:
 ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_usb.h:
@@ -93,6 +95,10 @@ Core/Src/main.o: ../Core/Src/main.c ../Core/Inc/main.h \
 ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_bus.h:
 ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_rcc_ex.h:
 ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_crs.h:
+../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_rtc.h:
+../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_rtc_ex.h:
+../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_spi.h:
+../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_spi_ex.h:
 ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_system.h:
 ../FATFS/App/app_fatfs.h:
 ../Middlewares/Third_Party/FatFs/src/ff.h:
@@ -106,10 +112,5 @@ Core/Src/main.o: ../Core/Src/main.c ../Core/Inc/main.h \
 ../USB_Device/App/usb_device.h:
 ../Middlewares/ST/STM32_USB_Device_Library/Core/Inc/usbd_def.h:
 ../USB_Device/Target/usbd_conf.h:
-C:/Users/Orgo/STM32CubeIDE/workspace_1.16.1/usb/USB_Device/Logger/logger.h:
-../Middlewares/ST/STM32_USB_Device_Library/Core/Inc/usbd_core.h:
-../Middlewares/ST/STM32_USB_Device_Library/Core/Inc/usbd_def.h:
-../Middlewares/ST/STM32_USB_Device_Library/Core/Inc/usbd_ioreq.h:
-../Middlewares/ST/STM32_USB_Device_Library/Core/Inc/usbd_core.h:
-../Middlewares/ST/STM32_USB_Device_Library/Core/Inc/usbd_ctlreq.h:
-C:/Users/Orgo/STM32CubeIDE/workspace_1.16.1/usb/Drivers/Charger/charger.h:
+../Core/Inc/app_runtime.h:
+../Core/Inc/main.h:

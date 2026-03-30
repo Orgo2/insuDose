@@ -6,7 +6,7 @@
 **  Author      : STM32CubeIDE
 **
 **  Abstract    : Linker script for STM32WB55xG Device
-**                      1024Kbytes FLASH
+**                      512Kbytes FLASH
 **                      256Kbytes RAM
 **
 **                Set heap size, stack size and stack location according
@@ -44,7 +44,8 @@ _Min_Stack_Size = 0x400; /* required amount of stack */
 /* Specify the memory areas */
 MEMORY
 {
-FLASH (rx)                 : ORIGIN = 0x08000000, LENGTH = 512K
+/* Poslednych 0x22000 B FLASH je rezervovanych pre 2 snapshot sloty loggera. */
+FLASH (rx)                 : ORIGIN = 0x08000000, LENGTH = 0x5E000
 RAM (xrw)                 : ORIGIN = 0x20000008, LENGTH = 0x2FFF8
 RAM_SHARED (xrw)           : ORIGIN = 0x20030000, LENGTH = 10K
 }

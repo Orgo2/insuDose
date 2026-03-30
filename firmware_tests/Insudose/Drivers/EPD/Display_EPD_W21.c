@@ -1,6 +1,8 @@
 #include "Display_EPD_W21_spi.h"
 #include "Display_EPD_W21.h"
 
+#define EPD_BUSY_TIMEOUT_MS 1500U
+
 //Delay Functions
 void delay_xms(unsigned int xms)
 {
@@ -11,10 +13,14 @@ void delay_xms(unsigned int xms)
 //Busy function
 void Epaper_READBUSY(void)
 { 
-  while(1)
-  {	 //=1 BUSY
-     if(isEPD_W21_BUSY==0) break;
-  }  
+  uint32_t t0 = HAL_GetTick();
+  while (isEPD_W21_BUSY != 0)
+  {
+    if ((HAL_GetTick() - t0) >= EPD_BUSY_TIMEOUT_MS) {
+      break;
+    }
+    HAL_Delay(1);
+  }
 }
 //Full screen update initialization
 void EPD_HW_Init(void)

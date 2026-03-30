@@ -80,7 +80,8 @@ Core/Src/main.o: ../Core/Src/main.c ../Core/Inc/main.h \
  C:/Users/orgo/Documents/Rado/git/insuDose/firmware_tests/Insudose/Drivers/EPD/fonts.h \
  C:/Users/orgo/Documents/Rado/git/insuDose/firmware_tests/Insudose/Drivers/TMP102/tmp102.h \
  C:/Users/orgo/Documents/Rado/git/insuDose/firmware_tests/Insudose/Drivers/Logger/logger.h \
- C:/Users/orgo/Documents/Rado/git/insuDose/firmware_tests/Insudose/Drivers/Charger/charger.h
+ C:/Users/orgo/Documents/Rado/git/insuDose/firmware_tests/Insudose/Drivers/Charger/charger.h \
+ ../Core/Src/../../Drivers/Boot/bootload.h
 ../Core/Inc/main.h:
 ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal.h:
 ../Core/Inc/stm32wbxx_hal_conf.h:
@@ -175,3 +176,4 @@ C:/Users/orgo/Documents/Rado/git/insuDose/firmware_tests/Insudose/Drivers/EPD/fo
 C:/Users/orgo/Documents/Rado/git/insuDose/firmware_tests/Insudose/Drivers/TMP102/tmp102.h:
 C:/Users/orgo/Documents/Rado/git/insuDose/firmware_tests/Insudose/Drivers/Logger/logger.h:
 C:/Users/orgo/Documents/Rado/git/insuDose/firmware_tests/Insudose/Drivers/Charger/charger.h:
+../Core/Src/../../Drivers/Boot/bootload.h:

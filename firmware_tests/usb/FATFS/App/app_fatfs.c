@@ -23,6 +23,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "../../Drivers/RTC/rtc_driver.h"
 
 /* USER CODE END Includes */
 
@@ -102,7 +103,7 @@ int32_t MX_FATFS_Process(void)
 DWORD get_fattime(void)
 {
   /* USER CODE BEGIN get_fattime */
-  return 0;
+  return rtc_driver_get_fattime();
   /* USER CODE END get_fattime */
 }
 

@@ -2,6 +2,8 @@
 #include "gpio.h"
 #include <math.h>
 
+#define TMP102_I2C_TIMEOUT_MS 20U
+
 // Helper: convert Celsius to TMP102 12-bit register bytes (MSB, LSB)
 static void tmp102_conv_temp_to_bytes(float temp_c, uint8_t *out_msb, uint8_t *out_lsb)
 {
@@ -30,6 +32,9 @@ HAL_StatusTypeDef TMP102_Init(I2C_HandleTypeDef *hi2c)
 
 	// 2) Počkajúci čas na stabilizáciu senzora (typicky 250 ms)
 	HAL_Delay(250);
+	if (HAL_I2C_IsDeviceReady(hi2c, TMP102_I2C_ADDRESS, 2, TMP102_I2C_TIMEOUT_MS) != HAL_OK) {
+		return HAL_ERROR;
+	}
 	// TMP102 je pripravený ihneď po napájaní.
     // Voliteľne by si mohol nastaviť konfiguráciu, ale default je OK.
     return HAL_OK;
@@ -56,14 +61,18 @@ HAL_StatusTypeDef TMP102_ReadTemperature(I2C_HandleTypeDef *hi2c, float *tempera
     uint8_t reg_pointer = 0x00; // Pointer na Temperature Register
     HAL_StatusTypeDef ret;
 
+    if ((hi2c == NULL) || (temperature_celsius == NULL)) {
+        return HAL_ERROR;
+    }
+
     // Nastav pointer na temperature register
-    ret = HAL_I2C_Master_Transmit(hi2c, TMP102_I2C_ADDRESS, &reg_pointer, 1, HAL_MAX_DELAY);
+    ret = HAL_I2C_Master_Transmit(hi2c, TMP102_I2C_ADDRESS, &reg_pointer, 1, TMP102_I2C_TIMEOUT_MS);
     if (ret != HAL_OK) {
         return ret;
     }
 
     // Prečítaj 2 bajty
-    ret = HAL_I2C_Master_Receive(hi2c, TMP102_I2C_ADDRESS, buffer, 2, HAL_MAX_DELAY);
+    ret = HAL_I2C_Master_Receive(hi2c, TMP102_I2C_ADDRESS, buffer, 2, TMP102_I2C_TIMEOUT_MS);
     if (ret != HAL_OK) {
         return ret;
     }
@@ -110,13 +119,16 @@ HAL_StatusTypeDef TMP102_SetAlarm(I2C_HandleTypeDef *hi2c, float t_low_c, float 
 
     // 2) Počkajúci čas na stabilizáciu senzora (typicky 250 ms)
     HAL_Delay(250);
+    if (HAL_I2C_IsDeviceReady(hi2c, TMP102_I2C_ADDRESS, 2, TMP102_I2C_TIMEOUT_MS) != HAL_OK) {
+        return HAL_ERROR;
+    }
 
     // 3) Zapiš T_LOW
     uint8_t tx_low[3];
     tx_low[0] = TMP102_REG_T_LOW;
     tmp102_conv_temp_to_bytes(t_low_c, &tx_low[1], &tx_low[2]);
 
-    ret = HAL_I2C_Master_Transmit(hi2c, TMP102_I2C_ADDRESS, tx_low, 3, HAL_MAX_DELAY);
+    ret = HAL_I2C_Master_Transmit(hi2c, TMP102_I2C_ADDRESS, tx_low, 3, TMP102_I2C_TIMEOUT_MS);
     if (ret != HAL_OK) {
         return ret;
     }
@@ -126,7 +138,7 @@ HAL_StatusTypeDef TMP102_SetAlarm(I2C_HandleTypeDef *hi2c, float t_low_c, float 
     tx_high[0] = TMP102_REG_T_HIGH;
     tmp102_conv_temp_to_bytes(t_high_c, &tx_high[1], &tx_high[2]);
 
-    ret = HAL_I2C_Master_Transmit(hi2c, TMP102_I2C_ADDRESS, tx_high, 3, HAL_MAX_DELAY);
+    ret = HAL_I2C_Master_Transmit(hi2c, TMP102_I2C_ADDRESS, tx_high, 3, TMP102_I2C_TIMEOUT_MS);
     if (ret != HAL_OK) {
         return ret;
     }
@@ -167,7 +179,7 @@ HAL_StatusTypeDef TMP102_SetAlarm(I2C_HandleTypeDef *hi2c, float t_low_c, float 
     tx_cfg[1] = cfg_byte1;
     tx_cfg[2] = cfg_byte2;
 
-    ret = HAL_I2C_Master_Transmit(hi2c, TMP102_I2C_ADDRESS, tx_cfg, 3, HAL_MAX_DELAY);
+    ret = HAL_I2C_Master_Transmit(hi2c, TMP102_I2C_ADDRESS, tx_cfg, 3, TMP102_I2C_TIMEOUT_MS);
     if (ret != HAL_OK) {
         return ret;
     }

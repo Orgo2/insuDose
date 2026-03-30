@@ -26,9 +26,9 @@
 #include "usbd_core.h"
 
 #include "usbd_msc.h"
-#include "logger.h"
 
 /* USER CODE BEGIN Includes */
+#include "logger.h"
 
 /* USER CODE END Includes */
 
@@ -77,6 +77,9 @@ void HAL_PCD_MspInit(PCD_HandleTypeDef* pcdHandle)
 {
   GPIO_InitTypeDef GPIO_InitStruct = {0};
   RCC_PeriphCLKInitTypeDef PeriphClkInitStruct = {0};
+#if defined(CRS)
+  RCC_CRSInitTypeDef CRSInitStruct = {0};
+#endif /* CRS */
   if(pcdHandle->Instance==USB)
   {
   /* USER CODE BEGIN USB_MspInit 0 */
@@ -92,6 +95,18 @@ void HAL_PCD_MspInit(PCD_HandleTypeDef* pcdHandle)
       Error_Handler();
     }
 
+#if defined(CRS)
+    /* Keep HSI48 accurate using LSE reference (independent of USB SOF). */
+    __HAL_RCC_CRS_CLK_ENABLE();
+    CRSInitStruct.Prescaler = RCC_CRS_SYNC_DIV1;
+    CRSInitStruct.Source = RCC_CRS_SYNC_SOURCE_LSE;
+    CRSInitStruct.Polarity = RCC_CRS_SYNC_POLARITY_RISING;
+    CRSInitStruct.ReloadValue = __HAL_RCC_CRS_RELOADVALUE_CALCULATE(48000000U, 32768U);
+    CRSInitStruct.ErrorLimitValue = RCC_CRS_ERRORLIMIT_DEFAULT;
+    CRSInitStruct.HSI48CalibrationValue = RCC_CRS_HSI48CALIBRATION_DEFAULT;
+    HAL_RCCEx_CRSConfig(&CRSInitStruct);
+#endif /* CRS */
+
     __HAL_RCC_GPIOA_CLK_ENABLE();
     /**USB GPIO Configuration
     PA11     ------> USB_DM
@@ -100,7 +115,7 @@ void HAL_PCD_MspInit(PCD_HandleTypeDef* pcdHandle)
     GPIO_InitStruct.Pin = GPIO_PIN_11|GPIO_PIN_12;
     GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
     GPIO_InitStruct.Pull = GPIO_NOPULL;
-    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
     GPIO_InitStruct.Alternate = GPIO_AF10_USB;
     HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 

@@ -40,6 +40,7 @@
 #include "tmp102.h"
 #include "logger.h"
 #include "charger.h"
+#include "../../Drivers/Boot/bootload.h"
 #define ENABLE_EPD 0
 /* USER CODE END Includes */
 
@@ -50,8 +51,6 @@
 #define PIEZO_PIN GPIO_PIN_2
 #define PIEZO_PORT GPIOB
 #define Butt_TIMEOUT_MS 2000
-#define BOOT_ADD 0x1FFF0000 //0x1FFF0000 stm32wb55 bootloader address
-#define BootJumpTime 3000
 
 /* USER CODE END PTD */
 
@@ -112,7 +111,8 @@ static uint8_t debounce_update(DebounceCtx *ctx, uint8_t raw_level, uint32_t now
 
 static DebounceCtx s_db_dose = { .stable_level = 1, .debounced_state = 0, .last_toggle_ms = 0, .debounce_ms = 30, .active_low = 1 };
 static uint8_t usb_boot_check_active = 0; // non-blocking bootloader hold in progress
-static uint32_t usb_boot_deadline_ms = 0;  // time when we decide (Jump or start USB)
+static uint32_t usb_boot_deadline_ms = 0;  // time when we decide about boot jump
+volatile uint32_t g_boot_stage = 0;        // diagnostic marker for bring-up
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -120,7 +120,7 @@ void SystemClock_Config(void);
 void PeriphCommonClock_Config(void);
 /* USER CODE BEGIN PFP */
 void PlayBeep(uint32_t duration_ms);
-void JumpToBootloader(void);
+static void BeepPattern(uint8_t count, uint32_t on_ms, uint32_t off_ms);
 //void RTC_SetBuildTime(void);
 //void Check_And_Log(void);
 /* USER CODE END PFP */
@@ -168,6 +168,7 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_LPTIM1_Init();
+  PlayBeep(20);
   MX_RTC_Init();
   MX_I2C1_Init();
   MX_LPTIM2_Init();
@@ -176,8 +177,7 @@ int main(void)
   if (MX_FATFS_Init() != APP_OK) {
     Error_Handler();
   }
-  // Remove eager USB init; start based on PE4 (VBUS)
-  // MX_USB_Device_Init();
+  MX_USB_Device_Init();
   MX_RF_Init();
   /* USER CODE BEGIN 2 */
   // Initialize peripherals for sensors & display
@@ -195,23 +195,28 @@ int main(void)
   charger_set_enabled(false);
   charger_batt_watchdog_config(2700, 200, 100); // sleep=2.7V, hyst=0.2V, watchdog band=0.1V
 
-  // Initial USB state according to PE4
+  // Read USB sense pin only for state tracking; do not gate USB start by this pin.
   usb_connected = (HAL_GPIO_ReadPin(USB_I_GPIO_Port, USB_I_Pin) == GPIO_PIN_SET);
-  if (usb_connected && !usb_started) {
-    // Start USB immediately to avoid host enumeration timeout
+  if (!usb_started) {
+    // Diagnostic mode: always start USB stack to validate host enumeration path.
     USB_Device_Start();
     usb_started = 1;
-    // If ENTER is held, schedule bootloader jump after 5s
-    if (HAL_GPIO_ReadPin(ENT_GPIO_Port, ENT_Pin) == GPIO_PIN_RESET) {
-      usb_boot_check_active = 1;
-      usb_boot_deadline_ms = HAL_GetTick() + 5000u; // 5s window
-    }
   }
+  // If ENTER is held at startup, schedule bootloader jump after 5s (non-blocking).
+  if (HAL_GPIO_ReadPin(ENT_GPIO_Port, ENT_Pin) == GPIO_PIN_RESET) {
+    usb_boot_check_active = 1;
+    usb_boot_deadline_ms = HAL_GetTick() + 5000u;
+  }
+  g_boot_stage = 8;
   logger_set_usb_active(usb_connected);
   /* USER CODE END 2 */
 
   /* Init code for STM32_WPAN */
   MX_APPE_Init();
+  g_boot_stage = 9;
+
+  // Audible marker: app reached runtime loop.
+  BeepPattern(1, 30, 0);
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
@@ -227,30 +232,20 @@ int main(void)
         // Start USB immediately
         USB_Device_Start();
         usb_started = 1;
-        if (HAL_GPIO_ReadPin(ENT_GPIO_Port, ENT_Pin) == GPIO_PIN_RESET) {
-          usb_boot_check_active = 1;
-          usb_boot_deadline_ms = HAL_GetTick() + 5000u;
-        }
-      } else if (!vbus_now && usb_started) {
-        USB_Device_Stop();
-        usb_started = 0;
-        usb_boot_check_active = 0;
       }
       usb_connected = vbus_now;
       logger_set_usb_active(usb_connected);
     }
 
-    // Handle deferred bootloader decision
+    // Handle deferred bootloader decision.
     if (usb_boot_check_active) {
-      // If still holding after deadline -> jump
       if ((int32_t)(HAL_GetTick() - usb_boot_deadline_ms) >= 0) {
+        BeepPattern(2, 30, 40);
         JumpToBootloader();
         usb_boot_check_active = 0; // in case jump returns
-      } else {
-        // If user released early, cancel boot jump (USB already started)
-        if (HAL_GPIO_ReadPin(ENT_GPIO_Port, ENT_Pin) != GPIO_PIN_RESET) {
-          usb_boot_check_active = 0;
-        }
+      } else if (HAL_GPIO_ReadPin(ENT_GPIO_Port, ENT_Pin) != GPIO_PIN_RESET) {
+        // Released early -> cancel bootloader request
+        usb_boot_check_active = 0;
       }
     }
 
@@ -304,6 +299,7 @@ int main(void)
     }
     __WFI(); // inline idle sleep
     /* USER CODE END WHILE */
+    MX_APPE_Process();
 
     /* USER CODE BEGIN 3 */
   }
@@ -370,19 +366,6 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
-
-  /* USER CODE BEGIN USB_CRS */
-  /* Configure CRS to auto-trim HSI48 using LSE for reliable USB FS clock */
-  __HAL_RCC_CRS_CLK_ENABLE();
-  RCC_CRSInitTypeDef crs = {0};
-  crs.Prescaler = RCC_CRS_SYNC_DIV1;
-  crs.Source = RCC_CRS_SYNC_SOURCE_LSE;
-  crs.Polarity = RCC_CRS_SYNC_POLARITY_RISING;
-  crs.ReloadValue = __HAL_RCC_CRS_RELOADVALUE_CALCULATE(32768, 48000000); // LSE=32768Hz
-  crs.ErrorLimitValue = RCC_CRS_ERRORLIMIT_DEFAULT;
-  crs.HSI48CalibrationValue = 0x40; // mid calibration
-  HAL_RCCEx_CRSConfig(&crs);
-  /* USER CODE END USB_CRS */
 }
 
 /**
@@ -420,67 +403,52 @@ void PeriphCommonClock_Config(void)
 /* USER CODE BEGIN 4 */
 /////////////////this function generates acoustic signal on mcu GPIO pin via LPTIM//////////////////////
 void PlayBeep(uint32_t duration_ms) {
-	uint32_t period = 999;  // 1 kHz (f=clk 4MHz/999)
-	uint32_t pulse = 500;   // 50% duty cycle (D=pulse/period)
-	// Spusti časovač na generovanie PWM
-    HAL_LPTIM_PWM_Start(&hlptim1, period, pulse);
+    uint32_t lptim_clk_hz = HAL_RCCEx_GetPeriphCLKFreq(RCC_PERIPHCLK_LPTIM1);
+    uint32_t target_hz = 4000u;
+    uint32_t ticks_per_period;
+    uint32_t period;
+    uint32_t pulse;
 
-    // Čakaj, kým uplynie trvanie zvuku
-    HAL_Delay(duration_ms);
+    if (duration_ms == 0u) {
+      return;
+    }
+    if (duration_ms > 100u) {
+      duration_ms = 100u;
+    }
 
-    // Zastav časovač
-    HAL_LPTIM_PWM_Stop(&hlptim1);
+    if (lptim_clk_hz == 0u) {
+      // Safe fallback if clock query is unavailable.
+      lptim_clk_hz = 4000000u;
+    }
+
+    ticks_per_period = lptim_clk_hz / target_hz;
+    if (ticks_per_period < 2u) {
+      ticks_per_period = 2u;
+    } else if (ticks_per_period > 0xFFFFu) {
+      ticks_per_period = 0xFFFFu;
+    }
+
+    period = ticks_per_period - 1u;
+    pulse = ticks_per_period / 2u;
+    if (pulse == 0u) {
+      pulse = 1u;
+    }
+
+    if (HAL_LPTIM_PWM_Start(&hlptim1, period, pulse) == HAL_OK) {
+      HAL_Delay(duration_ms);
+      (void)HAL_LPTIM_PWM_Stop(&hlptim1);
+    }
 }
 
-////////////////////this function releases all peripherials and jumps into bootloader/////////////////////////
-void JumpToBootloader(void) {
-
-
-    // Interupt disable
-    __disable_irq();
-
-    // Reset USB
-    USB->CNTR = 0x0003;
-
-    // Pheripherial reset
-    __HAL_RCC_GPIOC_CLK_DISABLE();
-    __HAL_RCC_GPIOB_CLK_DISABLE();
-    __HAL_RCC_GPIOA_CLK_DISABLE();
-
-    HAL_LPTIM_DeInit(&hlptim1);
-    HAL_RCC_DeInit();
-
-    // systick reset
-    SysTick->CTRL = 0;
-    SysTick->LOAD = 0;
-    SysTick->VAL = 0;
-    // Clear all interrupt bits
-      for (uint8_t i = 0; i < sizeof(NVIC->ICER) / sizeof(NVIC->ICER[0]); i++)
-      {
-        NVIC->ICER[i] = 0xFFFFFFFF;
-        NVIC->ICPR[i] = 0xFFFFFFFF;
-      }
-
-      /* Re-enable all interrupts */
-      __enable_irq();
-
-      /* Set up the jump to boot loader address + 4 */
-      uint32_t jump_address = *(__IO uint32_t *)(BOOT_ADD + 4);
-
-      /* Set the main stack pointer to the boot loader stack */
-      __set_MSP(*(uint32_t *)BOOT_ADD);
-
-      /* Call the function to jump to boot loader location */
-      void (*boot_load)(void) = (void (*)(void))(jump_address);
-
-      //remap memory
-      SYSCFG->MEMRMP = 0x01;
-
-      // Now jump to the boot loader
-      boot_load();
-      /* Jump is done successfully */
+static void BeepPattern(uint8_t count, uint32_t on_ms, uint32_t off_ms)
+{
+  for (uint8_t i = 0; i < count; i++) {
+    PlayBeep(on_ms);
+    if ((off_ms > 0u) && (i + 1u < count)) {
+      HAL_Delay(off_ms);
+    }
+  }
 }
-///////////////////end of bootloader function////////////////////////
 
 /////////////////set build time function//////////////////////
 void RTC_SetBuildTime(void) {
@@ -575,6 +543,7 @@ void Error_Handler(void)
 {
   /* USER CODE BEGIN Error_Handler_Debug */
   /* User can add his own implementation to report the HAL error return state */
+  g_boot_stage |= 0x80000000u;
   __disable_irq();
   while (1)
   {
@@ -597,3 +566,4 @@ void assert_failed(uint8_t *file, uint32_t line)
   /* USER CODE END 6 */
 }
 #endif /* USE_FULL_ASSERT */
+

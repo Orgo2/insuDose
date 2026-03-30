@@ -50,7 +50,7 @@ void MX_SAI1_Init(void)
   hsai_BlockA1.Init.NoDivider = SAI_MASTERDIVIDER_ENABLE;
   hsai_BlockA1.Init.MckOverSampling = SAI_MCK_OVERSAMPLING_DISABLE;
   hsai_BlockA1.Init.FIFOThreshold = SAI_FIFOTHRESHOLD_EMPTY;
-  hsai_BlockA1.Init.AudioFrequency = SAI_AUDIO_FREQUENCY_192K;
+  hsai_BlockA1.Init.AudioFrequency = SAI_AUDIO_FREQUENCY_96K;
   hsai_BlockA1.Init.MonoStereoMode = SAI_MONOMODE;
   hsai_BlockA1.Init.CompandingMode = SAI_NOCOMPANDING;
   hsai_BlockA1.Init.PdmInit.Activation = ENABLE;

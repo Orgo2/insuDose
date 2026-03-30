@@ -1,0 +1,4 @@
+../Core/Src/beeper.c:12:6:beeper_init	16	static
+../Core/Src/beeper.c:19:6:beeper_play	16	static
+../Core/Src/beeper.c:37:6:beeper_tick	8	static
+../Core/Src/beeper.c:51:6:beeper_is_active	4	static

@@ -25,7 +25,10 @@ C_DEPS :=
 SUBDIRS := \
 Core/Src \
 Core/Startup \
+Drivers/Beeper \
+Drivers/Boot \
 Drivers/Charger \
+Drivers/Clock \
 Drivers/EPD \
 Drivers/Logger \
 Drivers/STM32WBxx_HAL_Driver/Src \

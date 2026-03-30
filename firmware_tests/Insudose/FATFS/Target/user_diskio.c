@@ -15,15 +15,36 @@
   *
   ******************************************************************************
   */
-/* USER CODE END Header */
+ /* USER CODE END Header */
+
+#ifdef USE_OBSOLETE_USER_CODE_SECTION_0
+/*
+ * Warning: the user section 0 is no more in use (starting from CubeMx version 4.16.0)
+ * To be suppressed in the future.
+ * Kept to ensure backward compatibility with previous CubeMx versions when
+ * migrating projects.
+ * User code previously added there should be copied in the new user sections before
+ * the section contents can be deleted.
+ */
+/* USER CODE BEGIN 0 */
+/* USER CODE END 0 */
+#endif
+
+/* USER CODE BEGIN DECL */
 
 /* Includes ------------------------------------------------------------------*/
 #include <string.h>
 #include "ff_gen_drv.h"
-#include "logger.h"  // provides ram_disk, SECTOR_SIZE, NUM_SECTORS
+#include "logger.h"
+
+/* Private typedef -----------------------------------------------------------*/
+/* Private define ------------------------------------------------------------*/
 
 /* Private variables ---------------------------------------------------------*/
-static volatile DSTATUS Stat = 0; /* Disk status: 0 = OK */
+/* Disk status */
+static volatile DSTATUS Stat = STA_NOINIT;
+
+/* USER CODE END DECL */
 
 /* Private function prototypes -----------------------------------------------*/
 DSTATUS USER_initialize (BYTE pdrv);
@@ -60,9 +81,11 @@ DSTATUS USER_initialize (
 	BYTE pdrv           /* Physical drive nmuber to identify the drive */
 )
 {
-  (void)pdrv;
-  Stat = 0; /* ready */
-  return Stat;
+  /* USER CODE BEGIN INIT */
+    (void)pdrv;
+    Stat = 0;
+    return Stat;
+  /* USER CODE END INIT */
 }
 
 /**
@@ -74,8 +97,10 @@ DSTATUS USER_status (
 	BYTE pdrv       /* Physical drive number to identify the drive */
 )
 {
-  (void)pdrv;
-  return Stat; /* always ready */
+  /* USER CODE BEGIN STATUS */
+    (void)pdrv;
+    return Stat;
+  /* USER CODE END STATUS */
 }
 
 /**
@@ -93,15 +118,19 @@ DRESULT USER_read (
 	UINT count      /* Number of sectors to read */
 )
 {
-  (void)pdrv;
-  if ((sector + count) > NUM_SECTORS) {
-    return RES_PARERR;
-  }
-  memcpy(buff, &ram_disk[sector * SECTOR_SIZE], (size_t)count * SECTOR_SIZE);
-  return RES_OK;
+  /* USER CODE BEGIN READ */
+    (void)pdrv;
+    if ((buff == NULL) || (count == 0U)) {
+      return RES_PARERR;
+    }
+    if ((sector + count) > NUM_SECTORS) {
+      return RES_PARERR;
+    }
+    memcpy(buff, &ram_disk[sector * SECTOR_SIZE], count * SECTOR_SIZE);
+    return RES_OK;
+  /* USER CODE END READ */
 }
 
-#if _USE_WRITE == 1
 /**
   * @brief  Writes Sector(s)
   * @param  pdrv: Physical drive number (0..)
@@ -110,6 +139,7 @@ DRESULT USER_read (
   * @param  count: Number of sectors to write (1..128)
   * @retval DRESULT: Operation result
   */
+#if _USE_WRITE == 1
 DRESULT USER_write (
 	BYTE pdrv,          /* Physical drive nmuber to identify the drive */
 	const BYTE *buff,   /* Data to be written */
@@ -117,12 +147,17 @@ DRESULT USER_write (
 	UINT count          /* Number of sectors to write */
 )
 {
-  (void)pdrv;
-  if ((sector + count) > NUM_SECTORS) {
-    return RES_PARERR;
-  }
-  memcpy(&ram_disk[sector * SECTOR_SIZE], buff, (size_t)count * SECTOR_SIZE);
-  return RES_OK;
+  /* USER CODE BEGIN WRITE */
+    (void)pdrv;
+    if ((buff == NULL) || (count == 0U)) {
+      return RES_PARERR;
+    }
+    if ((sector + count) > NUM_SECTORS) {
+      return RES_PARERR;
+    }
+    memcpy(&ram_disk[sector * SECTOR_SIZE], buff, count * SECTOR_SIZE);
+    return RES_OK;
+  /* USER CODE END WRITE */
 }
 #endif /* _USE_WRITE == 1 */
 
@@ -140,21 +175,30 @@ DRESULT USER_ioctl (
 	void *buff      /* Buffer to send/receive control data */
 )
 {
-  (void)pdrv;
-  switch (cmd) {
-    case CTRL_SYNC:
-      return RES_OK;
-    case GET_SECTOR_COUNT:
-      *(DWORD*)buff = NUM_SECTORS;
-      return RES_OK;
-    case GET_SECTOR_SIZE:
-      *(WORD*)buff = SECTOR_SIZE;
-      return RES_OK;
-    case GET_BLOCK_SIZE:
-      *(DWORD*)buff = 1; /* erase block size in sectors (not applicable) */
-      return RES_OK;
-    default:
+  /* USER CODE BEGIN IOCTL */
+    DRESULT res = RES_OK;
+    (void)pdrv;
+    if (buff == NULL) {
       return RES_PARERR;
-  }
+    }
+    switch (cmd) {
+      case CTRL_SYNC:
+        break;
+      case GET_SECTOR_COUNT:
+        *(DWORD *)buff = NUM_SECTORS;
+        break;
+      case GET_SECTOR_SIZE:
+        *(WORD *)buff = SECTOR_SIZE;
+        break;
+      case GET_BLOCK_SIZE:
+        *(DWORD *)buff = 1U;
+        break;
+      default:
+        res = RES_PARERR;
+        break;
+    }
+    return res;
+  /* USER CODE END IOCTL */
 }
 #endif /* _USE_IOCTL == 1 */
+

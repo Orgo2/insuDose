@@ -22,7 +22,7 @@
 #include "usbd_storage_if.h"
 
 /* USER CODE BEGIN INCLUDE */
-#include "logger.h"
+#include "../Logger/logger.h"
 /* USER CODE END INCLUDE */
 
 /* Private typedef -----------------------------------------------------------*/

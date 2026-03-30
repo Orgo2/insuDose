@@ -1,0 +1,223 @@
+/*
+ * MIC.C
+ *
+ *  Created on: Nov 8, 2025
+ *      Author: orgo
+ */
+
+#include "MIC.h"
+#include "sai.h"
+#include "gpio.h"
+#include "main.h"
+#include <math.h>
+#include <string.h>
+
+// Globálne buffery pre audio dáta (minimalizované pre nízku spotrebu RAM)
+// Celková RAM: ~512 B pre buffery + ~100 B premenné = ~612 B celkom!
+static int16_t audioBuffer[MIC_BUFFER_SIZE];           // 256 vzoriek = 512 B
+static volatile uint16_t buffer_position = 0;
+static volatile bool recording = false;
+static volatile bool stopRequested = false;
+static volatile bool buffer_ready = false;
+
+// PDM to PCM konverzia (decimácia) - použitie stack namiesto statických bufferov
+// PDM_Filter_Handler_t a Config sú len pár bajtov
+static PDM_Filter_Handler_t PDM_FilterHandler;
+static PDM_Filter_Config_t PDM_FilterConfig;
+
+// Inicializácia mikrofónu
+void MIC_Init(void) {
+    // 1. Zapnutie napájania mikrofónu
+    HAL_GPIO_WritePin(PW_MIC_GPIO_Port, PW_MIC_Pin, GPIO_PIN_SET);
+    
+    // 2. Čakanie na ustálenie napájania
+    HAL_Delay(MIC_STABILIZATION_MS);
+    
+    // 3. Konfigurácia PDM filtra pre decimáciu
+    PDM_FilterHandler.bit_order = PDM_FILTER_BIT_ORDER_MSB;
+    PDM_FilterHandler.endianness = PDM_FILTER_ENDIANNESS_LE;
+    PDM_FilterHandler.high_pass_tap = 2122358088;
+    PDM_FilterHandler.out_ptr_channels = 1;
+    PDM_FilterHandler.in_ptr_channels = 1;
+    
+    PDM_Filter_Init(&PDM_FilterHandler);
+    
+    // Konfigurácia decimácie a filtrácie
+    PDM_FilterConfig.output_samples_number = MIC_SAMPLE_RATE / 1000; // Vzorky na ms
+    PDM_FilterConfig.mic_gain = 24; // Zosilnenie mikrofónu (0-24 dB)
+    PDM_FilterConfig.decimation_factor = PDM_FILTER_DEC_FACTOR_64; // Decimácia 64x
+    
+    PDM_Filter_setConfig(&PDM_FilterHandler, &PDM_FilterConfig);
+    
+    // 4. Inicializácia SAI pre PDM mikrofón (už nakonfigurované v sai.c)
+    // PA8 = SAI1_CK2 (Clock)
+    // PA9 = SAI1_D2 (Data)
+    // LR pin uzemnený = ľavý kanál
+    
+    recording = false;
+    stopRequested = false;
+}
+
+// Vypnutie mikrofónu
+void MIC_DeInit(void) {
+    MIC_StopRecording();
+    HAL_GPIO_WritePin(PW_MIC_GPIO_Port, PW_MIC_Pin, GPIO_PIN_RESET);
+}
+
+// Začatie nahrávania
+void MIC_StartRecording(void) {
+    if (!recording) {
+        recording = true;
+        stopRequested = false;
+        buffer_ready = false;
+        buffer_position = 0;
+        memset(audioBuffer, 0, sizeof(audioBuffer));
+        
+        // Spustenie SAI DMA príjmu v PDM režime
+        HAL_SAI_Receive_DMA(&hsai_BlockA1, (uint8_t*)audioBuffer, MIC_BUFFER_SIZE);
+    }
+}
+
+// Zastavenie nahrávania
+void MIC_StopRecording(void) {
+    if (recording) {
+        HAL_SAI_DMAStop(&hsai_BlockA1);
+        recording = false;
+    }
+}
+
+// Zastavenie merania (volá sa z EXTI interrupt DOSE tlačidla)
+void MIC_StopMeasurement(void) {
+    stopRequested = true;
+}
+
+// Goertzelův algoritmus pre detekciu konkrétnej frekvencie (efektívny, nízka spotreba)
+// Výpočtovo omnoho lacnejší ako FFT - potrebuje len 2 násobenia a 3 sčítania na vzorku
+static float goertzel_magnitude(int16_t* samples, uint32_t num_samples, uint16_t target_freq, uint32_t sample_rate) {
+    float k = (int)(0.5f + ((num_samples * target_freq) / (float)sample_rate));
+    float omega = (2.0f * M_PI * k) / num_samples;
+    float sine = sinf(omega);
+    float cosine = cosf(omega);
+    float coeff = 2.0f * cosine;
+    
+    float q0 = 0, q1 = 0, q2 = 0;
+    
+    for (uint32_t i = 0; i < num_samples; i++) {
+        q0 = coeff * q1 - q2 + samples[i];
+        q2 = q1;
+        q1 = q0;
+    }
+    
+    float real = (q1 - q2 * cosine);
+    float imag = (q2 * sine);
+    float magnitude = sqrtf(real * real + imag * imag);
+    
+    return magnitude;
+}
+
+// Pásmová priepusť s detekciou frekvencie (optimalizované pre 15kHz opakujúci sa signál)
+BandpassResult_t MIC_BandpassFilter(uint16_t freq_hz, float amplitude) {
+    BandpassResult_t result = {0};
+    
+    // Kontrola platnosti frekvencie
+    if (freq_hz > MIC_BANDPASS_MAX_FREQ || freq_hz < 20) {
+        result.completed = false;
+        return result;
+    }
+    
+    // Inicializácia a spustenie nahrávania
+    MIC_StartRecording();
+    
+    uint32_t detection_count = 0;
+    float background_sum = 0;
+    uint32_t background_samples = 0;
+    float detection_threshold = amplitude;
+    bool auto_detect = (amplitude == 0);
+    
+    // Pre 15kHz signál: použijeme kratšie okno (128 vzoriek = ~2.9ms @ 44kHz)
+    // Toto zachytí niekoľko period 15kHz signálu (15kHz = 66.7µs period, 2.9ms = 43 periód)
+    const uint32_t window_size = MIC_PROCESS_SIZE;
+    
+    // Fáza 1: Ak je amplitude 0, najprv zmeraj pozadie
+    if (auto_detect) {
+        const uint32_t background_measurements = 20; // 20 meraní pozadia
+        
+        for (uint32_t i = 0; i < background_measurements && !stopRequested; i++) {
+            // Čakaj na nové dáta
+            buffer_ready = false;
+            uint32_t timeout = HAL_GetTick() + 100;
+            while (!buffer_ready && HAL_GetTick() < timeout && !stopRequested) {
+                HAL_Delay(1);
+            }
+            
+            if (buffer_ready && recording) {
+                // Výpočet magnitudy pre cieľovú frekvenciu na menšom okne
+                float magnitude = goertzel_magnitude(audioBuffer, window_size, 
+                                                     freq_hz, MIC_SAMPLE_RATE);
+                background_sum += magnitude;
+                background_samples++;
+            }
+        }
+        
+        if (background_samples > 0) {
+            result.average_background = background_sum / background_samples;
+            // Nastavenie prahu na 2.5x priemer pozadia (citlivejšie pre 15kHz)
+            detection_threshold = result.average_background * 2.5f;
+        } else {
+            detection_threshold = 500.0f; // Defaultný prah pre 15kHz
+        }
+    }
+    
+    // Fáza 2: Detekcia frekvencie nad prahom (efektívne, minimum RAM)
+    while (!stopRequested) {
+        // Čakaj na nové dáta
+        buffer_ready = false;
+        uint32_t timeout = HAL_GetTick() + 100;
+        while (!buffer_ready && HAL_GetTick() < timeout && !stopRequested) {
+            HAL_Delay(1);
+        }
+        
+        if (buffer_ready && recording) {
+            // Výpočet magnitudy pre cieľovú frekvenciu pomocou Goertzelovho algoritmu
+            // Používame len malé okno = minimum RAM a rýchle spracovanie
+            float magnitude = goertzel_magnitude(audioBuffer, window_size, 
+                                                 freq_hz, MIC_SAMPLE_RATE);
+            
+            // Kontrola, či prekročila prah
+            if (magnitude > detection_threshold) {
+                detection_count++;
+            }
+        }
+        
+        // Kontrola tlačidla DOSE (EXTI interrupt nastaví stopRequested)
+        if (HAL_GPIO_ReadPin(DOSE_GPIO_Port, DOSE_Pin) == GPIO_PIN_RESET) {
+            break;
+        }
+    }
+    
+    // Zastavenie nahrávania
+    MIC_StopRecording();
+    
+    result.count = detection_count;
+    result.completed = true;
+    
+    return result;
+}
+
+// DMA Half Transfer callback
+void HAL_SAI_RxHalfCpltCallback(SAI_HandleTypeDef *hsai) {
+    if (hsai == &hsai_BlockA1 && recording) {
+        // Prvá polovica buffera je pripravená na spracovanie
+        buffer_ready = true;
+    }
+}
+
+// DMA Complete Transfer callback
+void HAL_SAI_RxCpltCallback(SAI_HandleTypeDef *hsai) {
+    if (hsai == &hsai_BlockA1 && recording) {
+        // Druhá polovica buffera je pripravená na spracovanie
+        buffer_ready = true;
+    }
+}
+
+

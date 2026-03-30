@@ -31,7 +31,10 @@ RM := rm -rf
 -include Drivers/STM32WBxx_HAL_Driver/Src/subdir.mk
 -include Drivers/Logger/subdir.mk
 -include Drivers/EPD/subdir.mk
+-include Drivers/Clock/subdir.mk
 -include Drivers/Charger/subdir.mk
+-include Drivers/Boot/subdir.mk
+-include Drivers/Beeper/subdir.mk
 -include Core/Startup/subdir.mk
 -include Core/Src/subdir.mk
 -include objects.mk

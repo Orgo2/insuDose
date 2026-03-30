@@ -2,8 +2,8 @@
 /**
  ******************************************************************************
   * @file    user_diskio.c
-  * @brief   This file includes a diskio driver skeleton to be completed by the user.
-  ******************************************************************************
+  * @brief   FatFs RAM disk backend used by the logger and USB MSC.
+ ******************************************************************************
   * @attention
   *
   * Copyright (c) 2025 STMicroelectronics.
@@ -13,7 +13,7 @@
   * in the root directory of this software component.
   * If no LICENSE file comes with this software, it is provided AS-IS.
   *
-  ******************************************************************************
+ ******************************************************************************
   */
  /* USER CODE END Header */
 
@@ -35,21 +35,14 @@
 /* Includes ------------------------------------------------------------------*/
 #include <string.h>
 #include "ff_gen_drv.h"
-#include "logger.h"
+#include "../../USB_Device/Logger/logger.h"
 
 /* Private typedef -----------------------------------------------------------*/
 
 /* Private define ------------------------------------------------------------*/
-///////////here we define ramdisk size///////
-//#define RAM_DISK_SIZE  (128 * 512)
-//uint8_t ram_disk[RAM_DISK_SIZE]; // <-- toto použije aj USB MSC
-//#define SECTOR_SIZE 512
-//#define NUM_SECTORS (RAM_DISK_SIZE / SECTOR_SIZE)
 uint8_t ram_disk[SECTOR_SIZE * NUM_SECTORS];
 
-////////end of ramdisk definition////////
 /* Private variables ---------------------------------------------------------*/
-/* Disk status */
 static volatile DSTATUS Stat = STA_NOINIT;
 
 /* USER CODE END DECL */
@@ -90,8 +83,12 @@ DSTATUS USER_initialize (
 )
 {
   /* USER CODE BEGIN INIT */
-	  Stat = 0; // Označ disk ako pripravený
-	  return Stat;
+  if (pdrv != 0u) {
+    return STA_NOINIT;
+  }
+
+  Stat = 0u;
+  return Stat;
   /* USER CODE END INIT */
 }
 
@@ -105,7 +102,11 @@ DSTATUS USER_status (
 )
 {
   /* USER CODE BEGIN STATUS */
-    return Stat;
+  if (pdrv != 0u) {
+    return STA_NOINIT;
+  }
+
+  return Stat;
   /* USER CODE END STATUS */
 }
 
@@ -125,10 +126,16 @@ DRESULT USER_read (
 )
 {
   /* USER CODE BEGIN READ */
-	////chat urava////
-	if (sector + count > NUM_SECTORS) return RES_PARERR;
-	memcpy(buff, &ram_disk[sector * SECTOR_SIZE], count * SECTOR_SIZE);
-	return RES_OK;
+  if (pdrv != 0u) {
+    return RES_PARERR;
+  }
+
+  if ((sector + count) > NUM_SECTORS) {
+    return RES_PARERR;
+  }
+
+  memcpy(buff, &ram_disk[sector * SECTOR_SIZE], count * SECTOR_SIZE);
+  return RES_OK;
   /* USER CODE END READ */
 }
 
@@ -149,11 +156,16 @@ DRESULT USER_write (
 )
 {
   /* USER CODE BEGIN WRITE */
-  /* USER CODE HERE */
-	///chatgpt uprava
-	if (sector + count > NUM_SECTORS) return RES_PARERR;
-	memcpy(&ram_disk[sector * SECTOR_SIZE], buff, count * SECTOR_SIZE);
-	return RES_OK;
+  if (pdrv != 0u) {
+    return RES_PARERR;
+  }
+
+  if ((sector + count) > NUM_SECTORS) {
+    return RES_PARERR;
+  }
+
+  memcpy(&ram_disk[sector * SECTOR_SIZE], buff, count * SECTOR_SIZE);
+  return RES_OK;
   /* USER CODE END WRITE */
 }
 #endif /* _USE_WRITE == 1 */
@@ -166,27 +178,37 @@ DRESULT USER_write (
   * @retval DRESULT: Operation result
   */
 #if _USE_IOCTL == 1
-DRESULT USER_ioctl (BYTE pdrv, BYTE cmd, void *buff)
+DRESULT USER_ioctl (
+	BYTE pdrv,      /* Physical drive nmuber (0..) */
+	BYTE cmd,       /* Control code */
+	void *buff      /* Buffer to send/receive control data */
+)
 {
-    switch (cmd) {
+  /* USER CODE BEGIN IOCTL */
+  if (pdrv != 0u) {
+    return RES_PARERR;
+  }
+
+  switch (cmd) {
     case CTRL_SYNC:
-        return RES_OK; // nič neflushujeme, RAM je „okamžitá“
+      return RES_OK;
 
-    case GET_SECTOR_COUNT:    // total LBA count (DWORD*)
-        *(DWORD*)buff = (DWORD)NUM_SECTORS;
-        return RES_OK;
+    case GET_SECTOR_COUNT:
+      *(DWORD *)buff = NUM_SECTORS;
+      return RES_OK;
 
-    case GET_SECTOR_SIZE:     // sector size (WORD*)
-        *(WORD*)buff = (WORD)SECTOR_SIZE;
-        return RES_OK;
+    case GET_SECTOR_SIZE:
+      *(WORD *)buff = SECTOR_SIZE;
+      return RES_OK;
 
-    case GET_BLOCK_SIZE:      // erase block in sectors (DWORD*)
-        *(DWORD*)buff = 1;    // RAM nemá mazané bloky
-        return RES_OK;
+    case GET_BLOCK_SIZE:
+      *(DWORD *)buff = 1u;
+      return RES_OK;
 
     default:
-        return RES_PARERR;
-    }
+      return RES_PARERR;
+  }
+  /* USER CODE END IOCTL */
 }
 #endif /* _USE_IOCTL == 1 */
 

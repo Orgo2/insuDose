@@ -1,0 +1,7 @@
+../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_rcc.h:2883:22:LL_RCC_EnableRTC	1
+../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_bus.h:939:22:LL_APB1_GRP1_EnableClock	1
+../Drivers/Clock/clock.c:13:16:BIN2BCD	1
+../Drivers/Clock/clock.c:18:16:BCD2BIN	1
+../Drivers/Clock/clock.c:23:6:Clock_Init	6
+../Drivers/Clock/clock.c:90:6:SetClock	5
+../Drivers/Clock/clock.c:130:12:GetClock	1

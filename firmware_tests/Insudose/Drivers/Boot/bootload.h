@@ -1,0 +1,13 @@
+/*
+ * bootload.h
+ *
+ *  Created on: Nov 8, 2025
+ *      Author: orgo
+ */
+
+#ifndef BOOT_BOOTLOAD_H_
+#define BOOT_BOOTLOAD_H_
+
+void JumpToBootloader(void);
+
+#endif /* BOOT_BOOTLOAD_H_ */

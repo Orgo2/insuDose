@@ -1,0 +1,20 @@
+/*
+ * beeper.h
+ *
+ *  Created on: Nov 8, 2025
+ *      Author: orgo
+ */
+
+#ifndef BEEPER_BEEPER_H_
+#define BEEPER_BEEPER_H_
+
+#include <stdint.h>
+
+// Default values
+#define BEEPER_DEFAULT_FREQ_HZ 1000
+#define BEEPER_DEFAULT_PWM_PERCENT 50
+
+void PlayBeep(uint32_t duration_ms, uint32_t freq_hz, uint8_t pwm_percent);
+
+
+#endif /* BEEPER_BEEPER_H_ */

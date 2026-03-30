@@ -26,6 +26,9 @@ SUBDIRS := \
 Core/Src \
 Core/Startup \
 Drivers/Charger \
+Drivers/Display \
+Drivers/TMP102 \
+Drivers/RTC \
 Drivers/STM32WBxx_HAL_Driver/Src \
 FATFS/App \
 FATFS/Target \

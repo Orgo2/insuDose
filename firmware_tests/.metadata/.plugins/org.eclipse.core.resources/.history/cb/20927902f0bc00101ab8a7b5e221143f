@@ -1,0 +1,46 @@
+/*
+ * MIC.h
+ *
+ *  Created on: Nov 8, 2025
+ *      Author: orgo
+ */
+
+#ifndef MIC_MIC_H_
+#define MIC_MIC_H_
+
+#include <stdint.h>
+#include <stdbool.h>
+
+// Konfiguračné konštanty
+#define MIC_SAMPLE_RATE         44000    // 44 kHz vzorkovacia frekvencia
+#define MIC_BUFFER_SIZE         2048     // Veľkosť bufferu pre audio dáta
+#define MIC_STABILIZATION_MS    10       // Čas na ustálenie napájania (ms)
+#define MIC_BANDPASS_MAX_FREQ   15000    // Maximálna frekvencia pre pásmovú priepust (Hz)
+
+// Štruktúra pre výsledok pásmovej priepuste
+typedef struct {
+    uint32_t count;              // Počet prekročení prahu
+    float average_background;    // Priemerná úroveň pozadia (ak sa použila auto-detection)
+    bool completed;              // Či meranie bolo dokončené
+} BandpassResult_t;
+
+// Inicializácia mikrofónu (zapne napájanie, nastaví PDM)
+void MIC_Init(void);
+
+// Vypnutie mikrofónu
+void MIC_DeInit(void);
+
+// Funkcia pásmovej priepuste s detekciou frekvencie
+// freq_hz: cieľová frekvencia na detekciu (Hz)
+// amplitude: prahová amplitúda (0 = auto-detect z pozadia)
+// Vracia: štruktúru s výsledkami
+BandpassResult_t MIC_BandpassFilter(uint16_t freq_hz, float amplitude);
+
+// Zastavenie aktuálneho merania (volá sa z EXTI interrupt)
+void MIC_StopMeasurement(void);
+
+// Pomocné funkcie (interné)
+void MIC_StartRecording(void);
+void MIC_StopRecording(void);
+
+#endif /* MIC_MIC_H_ */

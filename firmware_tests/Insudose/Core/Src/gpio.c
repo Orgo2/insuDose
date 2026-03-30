@@ -54,8 +54,7 @@ void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(GPIOA, PW_TMP_Pin|PW_MIC_Pin|D_CS_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, CEN_Pin|D_SCLK_Pin|D_DC_Pin|D_MOSI_Pin
-                          |D_RST_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOB, D_SCLK_Pin|D_DC_Pin|D_MOSI_Pin|D_RST_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pins : ENT_Pin DOSE_Pin */
   GPIO_InitStruct.Pin = ENT_Pin|DOSE_Pin;
@@ -76,26 +75,24 @@ void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_PULLUP;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : CEN_Pin D_SCLK_Pin D_DC_Pin D_MOSI_Pin
-                           D_RST_Pin */
-  GPIO_InitStruct.Pin = CEN_Pin|D_SCLK_Pin|D_DC_Pin|D_MOSI_Pin
-                          |D_RST_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  /*Configure GPIO pins : CEN_Pin D_BUSY_Pin */
+  GPIO_InitStruct.Pin = CEN_Pin|D_BUSY_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
   /*Configure GPIO pin : USB_I_Pin */
   GPIO_InitStruct.Pin = USB_I_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING_FALLING;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(USB_I_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : D_BUSY_Pin */
-  GPIO_InitStruct.Pin = D_BUSY_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  /*Configure GPIO pins : D_SCLK_Pin D_DC_Pin D_MOSI_Pin D_RST_Pin */
+  GPIO_InitStruct.Pin = D_SCLK_Pin|D_DC_Pin|D_MOSI_Pin|D_RST_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(D_BUSY_GPIO_Port, &GPIO_InitStruct);
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
   /* EXTI interrupt init*/
   HAL_NVIC_SetPriority(EXTI0_IRQn, 0, 0);

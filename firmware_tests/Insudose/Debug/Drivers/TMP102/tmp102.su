@@ -1,6 +1,6 @@
 ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_bus.h:539:22:LL_AHB2_GRP1_EnableClock	24	static
-../Drivers/TMP102/tmp102.c:6:13:tmp102_conv_temp_to_bytes	32	static
-../Drivers/TMP102/tmp102.c:16:19:TMP102_Init	40	static
-../Drivers/TMP102/tmp102.c:39:6:TMP102_Deinit	32	static
-../Drivers/TMP102/tmp102.c:53:19:TMP102_ReadTemperature	40	static
-../Drivers/TMP102/tmp102.c:91:19:TMP102_SetAlarm	48	static
+../Drivers/TMP102/tmp102.c:8:13:tmp102_conv_temp_to_bytes	32	static
+../Drivers/TMP102/tmp102.c:18:19:TMP102_Init	40	static
+../Drivers/TMP102/tmp102.c:44:6:TMP102_Deinit	32	static
+../Drivers/TMP102/tmp102.c:58:19:TMP102_ReadTemperature	40	static
+../Drivers/TMP102/tmp102.c:100:19:TMP102_SetAlarm	48	static

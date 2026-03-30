@@ -1,0 +1,51 @@
+/*
+ * MIC.h
+ *
+ *  Created on: Nov 8, 2025
+ *      Author: orgo
+ */
+
+#ifndef MIC_MIC_H_
+#define MIC_MIC_H_
+
+#include <stdint.h>
+#include <stdbool.h>
+
+// Konfiguračné konštanty (optimalizované pre 15kHz signál a minimálnu RAM)
+#define MIC_SAMPLE_RATE         44000    // 44 kHz (min. 30 kHz pre 15 kHz Nyquist)
+#define MIC_BUFFER_SIZE         256      // Minimálny buffer - len 512 B RAM!
+#define MIC_PROCESS_SIZE        128      // Veľkosť okna pre Goertzel
+#define MIC_STABILIZATION_MS    10       // Čas na ustálenie napájania (ms)
+#define MIC_BANDPASS_MAX_FREQ   15000    // Maximálna frekvencia pre pásmovú priepust (Hz)
+#define MIC_DEFAULT_FREQ        15000    // Predvolená frekvencia (15 kHz)
+
+// Histogram pre 24-bit mikrofón (IM67D120)
+#define MIC_HISTOGRAM_BINS      2048     // 2048 bins = 8 kB RAM, rozsah ~32k na bin
+#define MIC_AMPLITUDE_MAX       65535.0f // Max amplitúda pre normalizáciu
+
+// Štruktúra pre výsledok merania s Gaussovou analýzou
+typedef struct {
+    uint32_t signal_detections;  // Počet detekcií signálu (nad μ + N×σ)
+    uint32_t total_measurements; // Celkový počet meraní
+    float mean;                  // Priemer (μ) pozadia
+    float std_dev;               // Štandardná odchýlka (σ) pozadia
+    float threshold;             // Použitý prah (μ + sigma_multiplier×σ)
+    float signal_percentage;     // Percento času so signálom
+    bool completed;              // Či meranie bolo dokončené
+} MIC_Result_t;
+
+// Inicializácia mikrofónu (zapne napájanie, nastaví PDM)
+void MIC_Init(void);
+
+// Vypnutie mikrofónu
+void MIC_DeInit(void);
+
+// Detekcia frekvencie s histogramom a Gaussovou analýzou
+// freq_hz: cieľová frekvencia na detekciu (Hz) - napr. 15000 pre 15 kHz
+// sigma_multiplier: koľkonásobok σ nad priemerom = signál (napr. 2.0, 2.5, 3.0)
+//                   Vyššia hodnota = menej citlivé, ale menej falošných detekcií
+// Meranie beží, kým sa nestlačí tlačidlo DOSE
+// Vracia: štruktúru s výsledkami merania a štatistikou
+MIC_Result_t MIC_Detect(uint16_t freq_hz, float sigma_multiplier);
+
+#endif /* MIC_MIC_H_ */

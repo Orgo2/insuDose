@@ -18,7 +18,10 @@ RM := rm -rf
 -include Middlewares/ST/STM32_USB_Device_Library/Class/MSC/Src/subdir.mk
 -include FATFS/Target/subdir.mk
 -include FATFS/App/subdir.mk
+-include Drivers/TMP102/subdir.mk
+-include Drivers/RTC/subdir.mk
 -include Drivers/STM32WBxx_HAL_Driver/Src/subdir.mk
+-include Drivers/Display/subdir.mk
 -include Drivers/Charger/subdir.mk
 -include Core/Startup/subdir.mk
 -include Core/Src/subdir.mk
@@ -73,8 +76,8 @@ all: main-build
 main-build: usb.elf secondary-outputs
 
 # Tool invocations
-usb.elf usb.map: $(OBJS) $(USER_OBJS) C:\Users\Orgo\STM32CubeIDE\workspace_1.16.1\usb\STM32WB55CGUX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
-	arm-none-eabi-gcc -o "usb.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m4 -T"C:\Users\Orgo\STM32CubeIDE\workspace_1.16.1\usb\STM32WB55CGUX_FLASH.ld" --specs=nosys.specs -Wl,-Map="usb.map" -Wl,--gc-sections -static --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
+usb.elf usb.map: $(OBJS) $(USER_OBJS) ../STM32WB55CGUX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
+	arm-none-eabi-gcc -o "usb.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m4 -T"../STM32WB55CGUX_FLASH.ld" --specs=nosys.specs -Wl,-Map="usb.map" -Wl,--gc-sections -static --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
 	@echo 'Finished building target: $@'
 	@echo ' '
 

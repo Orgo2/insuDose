@@ -1,0 +1,90 @@
+/*
+ * clock.c
+ *
+ *  Created on: Nov 8, 2025
+ *      Author: orgo
+ */
+
+#include "clock.h"
+#include "rtc.h"
+
+// Pomocná funkcia na konverziu z BIN na BCD
+static uint8_t BIN2BCD(uint8_t value) {
+    return ((value / 10) << 4) | (value % 10);
+}
+
+// Pomocná funkcia na konverziu z BCD na BIN
+static uint8_t BCD2BIN(uint8_t value) {
+    return ((value >> 4) * 10) + (value & 0x0F);
+}
+
+// Inicializácia RTC hodín s externým 32.768 kHz kryštálom
+void Clock_Init(void) {
+    // RTC je už inicializované v MX_RTC_Init() z rtc.c
+    // Táto funkcia je voliteľná, môže sa použiť pre dodatočnú inicializáciu
+    MX_RTC_Init();
+}
+
+// Nastavenie času a dátumu (hh:mm:ss DD:MM:RR)
+void SetClock(uint8_t hours, uint8_t minutes, uint8_t seconds, 
+              uint8_t day, uint8_t month, uint8_t year) {
+    RTC_TimeTypeDef sTime = {0};
+    RTC_DateTypeDef sDate = {0};
+    
+    // Nastavenie času
+    sTime.Hours = BIN2BCD(hours);
+    sTime.Minutes = BIN2BCD(minutes);
+    sTime.Seconds = BIN2BCD(seconds);
+    sTime.DayLightSaving = RTC_DAYLIGHTSAVING_NONE;
+    sTime.StoreOperation = RTC_STOREOPERATION_RESET;
+    
+    if (HAL_RTC_SetTime(&hrtc, &sTime, RTC_FORMAT_BCD) != HAL_OK) {
+        Error_Handler();
+    }
+    
+    // Nastavenie dátumu
+    sDate.Date = BIN2BCD(day);
+    sDate.Month = BIN2BCD(month);
+    sDate.Year = BIN2BCD(year);
+    
+    // Výpočet dňa v týždni (Zeller's congruence pre Gregoriánsky kalendár)
+    uint16_t full_year = 2000 + year;
+    uint8_t m = month;
+    uint16_t y = full_year;
+    if (m < 3) {
+        m += 12;
+        y--;
+    }
+    uint8_t weekday = (day + (13 * (m + 1)) / 5 + y + y / 4 - y / 100 + y / 400) % 7;
+    // Konverzia na RTC formát (Monday = 1, Sunday = 7)
+    weekday = (weekday == 0) ? 7 : weekday;
+    sDate.WeekDay = weekday;
+    
+    if (HAL_RTC_SetDate(&hrtc, &sDate, RTC_FORMAT_BCD) != HAL_OK) {
+        Error_Handler();
+    }
+}
+
+// Získanie času a dátumu
+DateTime_t GetClock(void) {
+    DateTime_t dateTime;
+    RTC_TimeTypeDef sTime = {0};
+    RTC_DateTypeDef sDate = {0};
+    
+    // Získanie času
+    HAL_RTC_GetTime(&hrtc, &sTime, RTC_FORMAT_BCD);
+    // Získanie dátumu (musí sa volať po GetTime)
+    HAL_RTC_GetDate(&hrtc, &sDate, RTC_FORMAT_BCD);
+    
+    // Konverzia z BCD na BIN
+    dateTime.hours = BCD2BIN(sTime.Hours);
+    dateTime.minutes = BCD2BIN(sTime.Minutes);
+    dateTime.seconds = BCD2BIN(sTime.Seconds);
+    dateTime.day = BCD2BIN(sDate.Date);
+    dateTime.month = BCD2BIN(sDate.Month);
+    dateTime.year = BCD2BIN(sDate.Year);
+    
+    return dateTime;
+}
+
+
