@@ -15,7 +15,11 @@
 #define MIC_PDM_DECIMATION_BITS          64u
 #define MIC_PDM_PCM_SAMPLES_PER_HALF     (MIC_PDM_HALF_BUFFER_WORDS / 4u)
 #define MIC_PDM_STOP_TAIL_MS             32u
+#define MIC_PDM_AUTODETECT_PROBE_MS      6u
+#define MIC_PDM_FRAME_LENGTH_BITS        16u
+#define MIC_PDM_ACTIVE_FRAME_BITS        1u
 #define MIC_PDM_GOERTZEL_COEFF_Q14       (-12540)
+#define MIC_PDM_DEBUG_ALWAYS_POWERED     1u
 
 typedef enum
 {
@@ -35,6 +39,10 @@ static uint64_t s_total_abs_sum = 0u;
 static mic_pdm_state_t s_state = MIC_PDM_STATE_IDLE;
 static bool s_initialized = false;
 static bool s_result_ready = false;
+static bool s_preferred_ckstr = false;
+static bool s_current_ckstr = false;
+static bool s_autodetect_retry_done = false;
+static uint32_t s_autodetect_probe_ms = 0u;
 static mic_pdm_result_t s_result;
 
 static bool mic_pdm_tick_expired(uint32_t deadline_ms);
@@ -44,11 +52,13 @@ static void mic_pdm_power_on(void);
 static void mic_pdm_power_off(void);
 static bool mic_pdm_configure_clock(void);
 static bool mic_pdm_configure_dma(void);
-static void mic_pdm_configure_sai(void);
+static void mic_pdm_configure_sai(bool ckstr);
 static bool mic_pdm_start_hw(void);
 static void mic_pdm_stop_hw(void);
 static void mic_pdm_reset_result(void);
 static void mic_pdm_process_half(uint32_t start_index);
+static bool mic_pdm_has_progress(void);
+static bool mic_pdm_restart_with_polarity(bool ckstr);
 static void mic_pdm_finalize(void);
 static void mic_pdm_dma_half_complete(DMA_HandleTypeDef *hdma);
 static void mic_pdm_dma_complete(DMA_HandleTypeDef *hdma);
@@ -65,7 +75,7 @@ static void mic_pdm_configure_shared_pins_for_capture(void)
 
   __HAL_RCC_GPIOA_CLK_ENABLE();
 
-  gpio.Pin = GPIO_PIN_3 | GPIO_PIN_8 | GPIO_PIN_9 | GPIO_PIN_10;
+  gpio.Pin = GPIO_PIN_8 | GPIO_PIN_9;
   gpio.Mode = GPIO_MODE_AF_PP;
   gpio.Pull = GPIO_NOPULL;
   gpio.Speed = GPIO_SPEED_FREQ_LOW;
@@ -80,24 +90,18 @@ static void mic_pdm_power_on(void)
 
 static void mic_pdm_power_off(void)
 {
+#if (MIC_PDM_DEBUG_ALWAYS_POWERED == 1u)
+  HAL_GPIO_WritePin(Mic_PWR_GPIO_Port, Mic_PWR_Pin, GPIO_PIN_SET);
+#else
   HAL_GPIO_WritePin(Mic_PWR_GPIO_Port, Mic_PWR_Pin, GPIO_PIN_RESET);
+#endif
 }
 
 static void mic_pdm_restore_shared_pins(void)
 {
   GPIO_InitTypeDef gpio = {0};
 
-  HAL_GPIO_DeInit(GPIOA, GPIO_PIN_3 | GPIO_PIN_8 | GPIO_PIN_9 | GPIO_PIN_10);
-
-  gpio.Pin = Temp_Alert_Pin;
-  gpio.Mode = GPIO_MODE_IT_RISING_FALLING;
-  gpio.Pull = GPIO_PULLUP;
-  HAL_GPIO_Init(Temp_Alert_GPIO_Port, &gpio);
-
-  gpio.Pin = Ch_chg_Pin;
-  gpio.Mode = GPIO_MODE_INPUT;
-  gpio.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(Ch_chg_GPIO_Port, &gpio);
+  HAL_GPIO_DeInit(GPIOA, GPIO_PIN_8 | GPIO_PIN_9);
 
   gpio.Pin = GPIO_PIN_8 | GPIO_PIN_9;
   gpio.Mode = GPIO_MODE_INPUT;
@@ -149,7 +153,7 @@ static bool mic_pdm_configure_dma(void)
   return true;
 }
 
-static void mic_pdm_configure_sai(void)
+static void mic_pdm_configure_sai(bool ckstr)
 {
   uint32_t mckdiv;
   uint32_t sai_clk_hz = HAL_RCCEx_GetPeriphCLKFreq(RCC_PERIPHCLK_SAI1);
@@ -175,15 +179,18 @@ static void mic_pdm_configure_sai(void)
   SAI1_Block_A->CR1 = SAI_xCR1_MODE_0 |
                       SAI_xCR1_DS_2 |
                       SAI_xCR1_MONO |
+                      (ckstr ? SAI_xCR1_CKSTR : 0u) |
                       (mckdiv << 20);
 
-  SAI1_Block_A->FRCR = (32u - 1u);
-  SAI1_Block_A->SLOTR = (0x00000003u << 16) | ((2u - 1u) << 8);
+  /* PDM capture with one active data line uses a 16-bit frame and one slot. */
+  SAI1_Block_A->FRCR = ((MIC_PDM_FRAME_LENGTH_BITS - 1u) << SAI_xFRCR_FRL_Pos) |
+                       ((MIC_PDM_ACTIVE_FRAME_BITS - 1u) << SAI_xFRCR_FSALL_Pos);
+  SAI1_Block_A->SLOTR = 0u;
 
+  /* Pair 2 only, one active microphone on D2/CK2. */
   SAI1->PDMDLY = 0u;
-  SAI1->PDMCR = SAI_PDMCR_CKEN1 |
+  SAI1->PDMCR = 0u |
                 SAI_PDMCR_CKEN2 |
-                ((2u - 1u) << SAI_PDMCR_MICNBR_Pos) |
                 SAI_PDMCR_PDMEN;
 }
 
@@ -219,6 +226,32 @@ static void mic_pdm_reset_result(void)
   memset(&s_result, 0, sizeof(s_result));
   s_result.valid = false;
   s_result.last_sample = 0;
+}
+
+static bool mic_pdm_has_progress(void)
+{
+  return (s_result.pcm_samples != 0u) ||
+         (s_result.pdm_words != 0u) ||
+         (s_pending_halves != 0u) ||
+         (s_mic_dma.Instance->CNDTR != MIC_PDM_RAW_BUFFER_WORDS);
+}
+
+static bool mic_pdm_restart_with_polarity(bool ckstr)
+{
+  mic_pdm_stop_hw();
+  memset(s_raw_buffer, 0, sizeof(s_raw_buffer));
+  s_pending_halves = 0u;
+  s_overflow = 0u;
+  s_dma_error = 0u;
+  s_total_abs_sum = 0u;
+  mic_pdm_reset_result();
+  s_result_ready = false;
+  s_current_ckstr = ckstr;
+  s_autodetect_retry_done = true;
+  s_autodetect_probe_ms = HAL_GetTick() + MIC_PDM_AUTODETECT_PROBE_MS;
+  mic_pdm_configure_clock();
+  mic_pdm_configure_sai(ckstr);
+  return mic_pdm_start_hw();
 }
 
 static void mic_pdm_process_half(uint32_t start_index)
@@ -278,12 +311,24 @@ static void mic_pdm_process_half(uint32_t start_index)
 
 static void mic_pdm_finalize(void)
 {
+  bool had_progress = mic_pdm_has_progress();
+
+  s_result.sai_enabled = ((SAI1_Block_A->CR1 & SAI_xCR1_SAIEN) != 0u);
+  s_result.dma_enabled = ((SAI1_Block_A->CR1 & SAI_xCR1_DMAEN) != 0u);
+  s_result.ckstr = ((SAI1_Block_A->CR1 & SAI_xCR1_CKSTR) != 0u);
+  s_result.pdm_enabled = ((SAI1->PDMCR & SAI_PDMCR_PDMEN) != 0u);
+  s_result.dma_cndtr = s_mic_dma.Instance->CNDTR;
+  s_result.sai_sr = SAI1_Block_A->SR;
   mic_pdm_stop_hw();
   mic_pdm_restore_shared_pins();
   s_result.capture_ms = HAL_GetTick() - s_start_tick_ms;
   s_result.overflow = (s_overflow != 0u);
   s_result.dma_error = (s_dma_error != 0u);
+  s_result.autodetect_failed = (!had_progress && s_autodetect_retry_done);
   s_result.valid = (s_result.pcm_samples != 0u) && !s_result.dma_error;
+  if (s_result.valid) {
+    s_preferred_ckstr = s_current_ckstr;
+  }
   s_state = MIC_PDM_STATE_IDLE;
   s_result_ready = true;
 }
@@ -351,12 +396,15 @@ bool mic_pdm_start(void)
   s_result_ready = false;
   s_start_tick_ms = HAL_GetTick();
   s_stop_after_ms = 0u;
+  s_autodetect_probe_ms = s_start_tick_ms + MIC_PDM_AUTODETECT_PROBE_MS;
   s_total_abs_sum = 0u;
+  s_current_ckstr = s_preferred_ckstr;
+  s_autodetect_retry_done = false;
 
   mic_pdm_power_on();
   mic_pdm_configure_shared_pins_for_capture();
   mic_pdm_configure_clock();
-  mic_pdm_configure_sai();
+  mic_pdm_configure_sai(s_current_ckstr);
   if (!mic_pdm_start_hw()) {
     mic_pdm_restore_shared_pins();
     __HAL_RCC_SAI1_CLK_DISABLE();
@@ -398,6 +446,15 @@ void mic_pdm_task(void)
   if (s_dma_error != 0u) {
     mic_pdm_finalize();
     return;
+  }
+
+  if (!s_autodetect_retry_done &&
+      mic_pdm_tick_expired(s_autodetect_probe_ms) &&
+      !mic_pdm_has_progress()) {
+    if (!mic_pdm_restart_with_polarity(!s_current_ckstr)) {
+      mic_pdm_finalize();
+      return;
+    }
   }
 
   if ((s_state == MIC_PDM_STATE_STOPPING) && mic_pdm_tick_expired(s_stop_after_ms) &&

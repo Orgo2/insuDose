@@ -9,10 +9,17 @@ typedef struct
   bool valid;
   bool overflow;
   bool dma_error;
+  bool autodetect_failed;
+  bool sai_enabled;
+  bool dma_enabled;
+  bool pdm_enabled;
+  bool ckstr;
   uint32_t capture_ms;
   uint32_t pdm_words;
   uint32_t pcm_samples;
   uint32_t block_count;
+  uint32_t dma_cndtr;
+  uint32_t sai_sr;
   uint16_t peak_abs;
   uint16_t avg_abs;
   uint32_t hf15_energy;

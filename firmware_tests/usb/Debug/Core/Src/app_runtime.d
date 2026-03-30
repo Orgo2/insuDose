@@ -47,7 +47,7 @@ Core/Src/app_runtime.o: ../Core/Src/app_runtime.c \
  ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_system.h \
  ../Core/Inc/app_display.h ../Core/Inc/../../Drivers/RTC/rtc_driver.h \
  ../Core/Inc/main.h ../Core/Inc/mic_pdm.h ../Core/Inc/beeper.h \
- ../USB_Device/App/usb_device.h \
+ ../Core/Inc/mic_pdm.h ../USB_Device/App/usb_device.h \
  ../Middlewares/ST/STM32_USB_Device_Library/Core/Inc/usbd_def.h \
  ../USB_Device/Target/usbd_conf.h \
  ../Core/Src/../../Drivers/Charger/charger.h \
@@ -115,6 +115,7 @@ Core/Src/app_runtime.o: ../Core/Src/app_runtime.c \
 ../Core/Inc/main.h:
 ../Core/Inc/mic_pdm.h:
 ../Core/Inc/beeper.h:
+../Core/Inc/mic_pdm.h:
 ../USB_Device/App/usb_device.h:
 ../Middlewares/ST/STM32_USB_Device_Library/Core/Inc/usbd_def.h:
 ../USB_Device/Target/usbd_conf.h:

@@ -2,6 +2,7 @@
 
 #include "app_display.h"
 #include "beeper.h"
+#include "mic_pdm.h"
 #include "usb_device.h"
 
 #include "../../Drivers/Charger/charger.h"
@@ -24,11 +25,14 @@ void PeriphCommonClock_Config(void);
 static volatile app_sys_state_t s_state = SYS_RUNNING;
 static volatile uint8_t s_power_detect_present = 0u;
 static volatile uint8_t s_dose_log_pending = 0u;
+static volatile uint8_t s_dose_mic_start_pending = 0u;
+static volatile uint8_t s_dose_mic_stop_pending = 0u;
 static volatile uint8_t s_wake_lowbatt = 0u;
 static volatile uint8_t s_dose_cycle_armed = 0u;
 
 static bool s_usb_session_active = false;
 static bool s_usb_stack_started = false;
+static bool s_mic_available = false;
 
 static uint8_t app_read_power_detect(void);
 static bool app_is_power_present(void);
@@ -71,6 +75,7 @@ bool app_runtime_init(I2C_HandleTypeDef *temp_i2c,
   charger_init();
   app_pvd_init();
   app_ensure_ramdisk_ready();
+  s_mic_available = mic_pdm_init();
 
   if (!app_display_init()) {
     return false;
@@ -104,12 +109,39 @@ bool app_runtime_init(I2C_HandleTypeDef *temp_i2c,
 
 void app_runtime_tick(void)
 {
+  mic_pdm_result_t mic_result;
+  charger_info_t charger_info;
+  int32_t battery_mv = -1;
+
   app_update_power_detect();
   beeper_tick();
 
   if (s_wake_lowbatt != 0u) {
     s_wake_lowbatt = 0u;
     charger_force_measure();
+  }
+
+  if (s_mic_available && (s_dose_mic_start_pending != 0u) &&
+      !s_usb_session_active && !mic_pdm_is_active()) {
+    s_dose_mic_start_pending = 0u;
+    (void)mic_pdm_start();
+  }
+
+  if (s_mic_available && (s_dose_mic_stop_pending != 0u) && mic_pdm_is_active()) {
+    s_dose_mic_stop_pending = 0u;
+    mic_pdm_request_stop();
+  }
+
+  if (s_mic_available) {
+    mic_pdm_task();
+    if (mic_pdm_take_result(&mic_result)) {
+      memset(&charger_info, 0, sizeof(charger_info));
+      charger_get_info(&charger_info);
+      if (charger_info.battery_valid) {
+        battery_mv = charger_info.battery_mv;
+      }
+      app_display_note_mic_debug(&mic_result, battery_mv);
+    }
   }
 
   charger_task(app_is_power_present());
@@ -146,9 +178,16 @@ void app_runtime_on_exti(uint16_t gpio_pin)
   if (gpio_pin == Dose_Pin) {
     if (HAL_GPIO_ReadPin(Dose_GPIO_Port, Dose_Pin) != GPIO_PIN_RESET) {
       s_dose_cycle_armed = 1u;
+      if (s_mic_available && !s_usb_session_active) {
+        s_dose_mic_start_pending = 1u;
+        s_dose_mic_stop_pending = 0u;
+      }
     } else if (s_dose_cycle_armed != 0u) {
       s_dose_cycle_armed = 0u;
       s_dose_log_pending = 1u;
+      if (s_mic_available) {
+        s_dose_mic_stop_pending = 1u;
+      }
     }
     return;
   }
@@ -215,7 +254,8 @@ static void app_usb_session_leave(void)
 
 static void app_sleep_until_event(void)
 {
-  if (s_usb_session_active || s_usb_stack_started || beeper_is_active()) {
+  if (s_usb_session_active || s_usb_stack_started || beeper_is_active() ||
+      (s_mic_available && mic_pdm_is_active())) {
     __WFI();
     return;
   }
@@ -378,5 +418,4 @@ static void app_buttons_tick(void)
                         charger_info.battery_valid ? charger_info.battery_mv : -1,
                         datetime_valid ? &dose_datetime : NULL,
                         datetime_valid);
-  app_display_note_mic_debug(NULL, -1);
 }

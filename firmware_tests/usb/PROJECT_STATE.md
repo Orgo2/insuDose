@@ -21,7 +21,9 @@
 - E-paper display funguje, je neblokujuci a pocas cakania na `BUSY` vie pustit MCU do `STOP2`
 - Display po davke zobrazuje davku, cas od poslednej davky, bateriu a teplotu
 - Pri USB zobrazuje samostatnu bateriovu/status obrazovku
-- `IM67D120` bring-up modul je v projekte, ale je docasne odpojeny od runtime, kym sa znovu nepotvrdi stabilna baza `dose + USB + display`
+- `IM67D120` bring-up modul je znovu napojeny len pasivne: `dose` logika ostava samostatna, mic bezi iba ako sidecar debug bez vplyvu na zapis logu
+- Low-level mic driver je uz zredukovany na samotny mikrofon na `PA8/PA9` bez dotyku `PA3/PA10`
+- `Mic_PWR` (`PA7`) je docasne drzaný zapnuty od bootu, aby sa vylucil problem napajania mikrofónu
 
 ## Stabilne poziadavky
 - `Display_EPD_W21*` driver brat ako svaty, menit len ked je na to explicitny dovod
@@ -55,3 +57,4 @@
 - Mic `PA7` napajanie treba zapinat okamzite pri starte capture, bez umeleho extra delay
 - Mic start sa ma robit mimo EXTI IRQ; v IRQ sa ma len oznacit pending event a realny start spustit az v hlavnom ticku
 - Pri ladeni mikrofónu najprv nesmie byt rozbita baza: `dose` musi logovat a display/USB sa musia prepinat bez regresii
+- Aktualny bezpecny postup: mic moze zbierat debug data na pozadi, ale nesmie rozhodovat o tom, ci sa zapise log alebo prekresli display

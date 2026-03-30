@@ -275,20 +275,27 @@ static void app_display_format_mic_debug_line1(char *buffer, size_t buffer_len)
   }
 
   if (!s_last_mic_debug.valid) {
+    unsigned polarity_code = s_last_mic_debug.autodetect_failed ? 2u : (s_last_mic_debug.ckstr ? 1u : 0u);
     (void)snprintf(buffer,
                    buffer_len,
-                   "MIC ERR P%u A%u",
-                   (unsigned)s_last_mic_debug.peak_abs,
-                   (unsigned)s_last_mic_debug.avg_abs);
+                   "E%uO%u A%uD%uP%uC%u R%02lX",
+                   s_last_mic_debug.dma_error ? 1u : 0u,
+                   s_last_mic_debug.overflow ? 1u : 0u,
+                   s_last_mic_debug.sai_enabled ? 1u : 0u,
+                   s_last_mic_debug.dma_enabled ? 1u : 0u,
+                   s_last_mic_debug.pdm_enabled ? 1u : 0u,
+                   polarity_code,
+                   (unsigned long)(s_last_mic_debug.sai_sr & 0xFFu));
     return;
   }
 
   (void)snprintf(buffer,
                  buffer_len,
-                 "MIC P%u A%u H%lu",
+                 "MP%u A%u S%lu W%lu",
                  (unsigned)s_last_mic_debug.peak_abs,
                  (unsigned)s_last_mic_debug.avg_abs,
-                 (unsigned long)(s_last_mic_debug.hf15_energy >> 10));
+                 (unsigned long)s_last_mic_debug.pcm_samples,
+                 (unsigned long)s_last_mic_debug.pdm_words);
 }
 
 static void app_display_render_frame(uint32_t *elapsed_minutes_out)
