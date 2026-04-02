@@ -3,37 +3,70 @@
 #include "stm32wbxx_hal_flash.h"
 #include "stm32wbxx_hal_flash_ex.h"
 
+/*
+ * Log storage module.
+ * The live log lives on a RAM disk backed by FatFS. When the device is about
+ * to sleep on an empty battery, the whole RAM disk plus selected metadata are
+ * snapshotted into internal flash so the next boot can restore the previous
+ * state. During an active USB MSC session, local writes are blocked because
+ * the host owns the medium.
+ */
+
+/* Magic word that marks one valid flash snapshot slot header. */
 #define LOGGER_SNAPSHOT_MAGIC         0x32534452u  // 'RDS2'
+/* Snapshot layout version; bump when on-flash format changes. */
 #define LOGGER_SNAPSHOT_VERSION       4u
+/* Header flag meaning the log file already wrapped around its fixed-size area. */
 #define LOGGER_SNAPSHOT_FLAG_WRAPPED  0x00000001u
+/* Synthetic error code used when written flash data cannot be verified back. */
 #define LOGGER_FLASH_ERROR_VERIFY     0x80000000u
 
 typedef struct
 {
+    /* Signature and format checks for one snapshot slot. */
     uint32_t magic;
     uint32_t version;
+    /* Monotonic sequence number used to choose the newest slot. */
     uint32_t sequence;
+    /* Length of the RAM-disk payload stored after the metadata area. */
     uint32_t data_len;
+    /* Number of valid metadata bytes stored in s_snapshot_metadata. */
     uint32_t metadata_len;
+    /* Current write cursor inside the circular log file. */
     uint32_t log_offset;
+    /* Last issued log record number. */
     uint32_t record_counter;
+    /* Bit flags such as LOGGER_SNAPSHOT_FLAG_WRAPPED. */
     uint32_t flags;
+    /* CRC over header payload, metadata and RAM-disk image. */
     uint32_t crc32;
 } logger_snapshot_header_t;
 
+/* Aligned header size written to each flash snapshot slot. */
 #define LOGGER_SNAPSHOT_HEADER_SIZE   (((uint32_t)sizeof(logger_snapshot_header_t) + 7u) & ~7u)
+/* Reserved aligned area for arbitrary metadata stored next to the RAM disk. */
 #define LOGGER_SNAPSHOT_METADATA_SIZE (((uint32_t)LOGGER_SNAPSHOT_METADATA_MAX_BYTES + 7u) & ~7u)
+/* Byte offset from slot start to the RAM-disk payload. */
 #define LOGGER_SNAPSHOT_DATA_OFFSET   (LOGGER_SNAPSHOT_HEADER_SIZE + LOGGER_SNAPSHOT_METADATA_SIZE)
+/* Number of flash pages needed for one snapshot slot. */
 #define LOGGER_SNAPSHOT_SLOT_PAGES    (((LOGGER_BACKUP_BYTES + LOGGER_SNAPSHOT_DATA_OFFSET) + LOGGER_FLASH_PAGE_SIZE - 1u) / LOGGER_FLASH_PAGE_SIZE)
+/* Full byte size consumed by one snapshot slot in flash. */
 #define LOGGER_SNAPSHOT_SLOT_BYTES    (LOGGER_SNAPSHOT_SLOT_PAGES * LOGGER_FLASH_PAGE_SIZE)
 
+/* True while USB MSC owns the RAM disk and firmware-local file writes must stop. */
 static volatile bool s_usb_session_active = false;
+/* True after the fixed-size log file started overwriting from the beginning. */
 static bool s_wrapped = false;
+/* Opaque metadata blob saved next to the RAM-disk snapshot (for TMP102 backup etc.). */
 static uint8_t s_snapshot_metadata[LOGGER_SNAPSHOT_METADATA_MAX_BYTES] = {0};
+/* Number of valid bytes currently stored in s_snapshot_metadata. */
 static uint16_t s_snapshot_metadata_len = 0u;
+/* Last used monotonic record number written to the CSV log. */
 static uint32_t s_record_counter = 0u;
+/* Last flash-programming or verification error observed by snapshot code. */
 static uint32_t s_last_flash_error = HAL_FLASH_ERROR_NONE;
 
+/* Current circular write cursor inside the on-RAM CSV log file. */
 uint32_t log_offset = 0;
 
 static uint32_t crc32_update(uint32_t crc, const uint8_t *data, uint32_t len);
@@ -51,6 +84,7 @@ static void logger_write_2digits(char *dst, unsigned value);
 static void logger_write_4digits(char *dst, unsigned value);
 static void logger_format_timestamp_12(char *dst, const rtc_datetime_t *datetime);
 
+/* Called by app_runtime when the host starts/stops owning the RAM disk over USB MSC. */
 void logger_set_usb_session_active(bool active)
 {
     s_usb_session_active = active;
@@ -96,6 +130,7 @@ bool logger_get_snapshot_metadata(void *data, uint16_t max_len, uint16_t *out_le
     return true;
 }
 
+/* Create a fresh FAT volume and empty log file directly on the RAM disk buffer. */
 bool init_ramdisk(void)
 {
     FRESULT res;
@@ -129,6 +164,7 @@ bool init_ramdisk(void)
     return true;
 }
 
+/* Mount and validate the existing FAT volume already present in RAM. */
 bool logger_mount_ramdisk(void)
 {
     FIL file;
@@ -145,6 +181,7 @@ bool logger_mount_ramdisk(void)
     return true;
 }
 
+/* Format one CSV line and append it into the fixed-size circular log file. */
 bool append_log_rotating(uint8_t davka, int8_t teplota_c)
 {
     char line[MAX_LOG_LINE_LEN];
@@ -189,6 +226,7 @@ bool append_log_rotating(uint8_t davka, int8_t teplota_c)
     return true;
 }
 
+/* Open the log file only when firmware, not the USB host, owns the RAM disk. */
 static bool logger_prepare_for_write(FIL *file)
 {
     if ((file == NULL) || s_usb_session_active || logger_ramdisk_is_empty()) {
@@ -202,6 +240,7 @@ static bool logger_prepare_for_write(FIL *file)
     return (f_open(file, LOG_FILE_NAME, FA_WRITE | FA_OPEN_ALWAYS) == FR_OK);
 }
 
+/* Append one already-formatted line into the fixed-size circular CSV file. */
 static bool logger_append_line(const char *line)
 {
     FIL file;
@@ -323,6 +362,7 @@ static uint32_t logger_snapshot_slot_address(uint32_t slot_index)
     return LOGGER_FLASH_END - ((LOGGER_SNAPSHOT_SLOT_COUNT - slot_index) * LOGGER_SNAPSHOT_SLOT_BYTES);
 }
 
+/* CRC covers runtime-relevant header fields, metadata and the raw RAM-disk image. */
 static uint32_t logger_snapshot_crc(const logger_snapshot_header_t *header,
                                     const uint8_t *metadata,
                                     const uint8_t *data)
@@ -393,6 +433,7 @@ static bool logger_read_snapshot_slot(uint32_t slot_index, bool load_metadata, l
     return true;
 }
 
+/* Scan all slots and choose the newest valid flash snapshot by sequence number. */
 static bool logger_find_latest_snapshot(logger_snapshot_header_t *header, const uint8_t **data, uint32_t *slot_index)
 {
     bool found = false;
@@ -436,6 +477,7 @@ static bool logger_find_latest_snapshot(logger_snapshot_header_t *header, const 
     return true;
 }
 
+/* Erase the flash pages that will hold one whole snapshot slot. */
 static bool flash_erase_pages(uint32_t addr_start, uint32_t pages)
 {
     HAL_StatusTypeDef status;
@@ -460,6 +502,7 @@ static bool flash_erase_pages(uint32_t addr_start, uint32_t pages)
     return (status == HAL_OK);
 }
 
+/* Program an arbitrary byte stream into flash using aligned doubleword writes. */
 static bool flash_program_bytes(uint32_t dst, const uint8_t *src, uint32_t len)
 {
     HAL_StatusTypeDef status;
@@ -488,6 +531,7 @@ static bool flash_program_bytes(uint32_t dst, const uint8_t *src, uint32_t len)
     return true;
 }
 
+/* Persist the complete RAM disk plus metadata to the next rotating flash slot. */
 bool logger_persist_ramdisk_to_flash(void)
 {
     logger_snapshot_header_t latest_header;
@@ -538,6 +582,7 @@ bool logger_persist_ramdisk_to_flash(void)
     return true;
 }
 
+/* Restore the newest valid flash snapshot back into the live RAM disk buffer. */
 bool logger_restore_ramdisk_from_flash(void)
 {
     logger_snapshot_header_t header;
@@ -557,11 +602,13 @@ bool logger_restore_ramdisk_from_flash(void)
     return true;
 }
 
+/* Quick validity probe used by runtime code before attempting a full restore. */
 bool logger_flash_snapshot_is_available(void)
 {
     return logger_find_latest_snapshot(NULL, NULL, NULL);
 }
 
+/* Detect whether the RAM disk currently contains a plausible FAT boot sector. */
 bool logger_ramdisk_is_empty(void)
 {
     const uint8_t *boot_sector = &ram_disk[0];
@@ -578,6 +625,7 @@ bool logger_ramdisk_is_empty(void)
     return false;
 }
 
+/* Deliberately break the FAT signature so runtime knows the live RAM disk is no longer valid. */
 void logger_invalidate_ramdisk(void)
 {
     ram_disk[510] = 0x00u;

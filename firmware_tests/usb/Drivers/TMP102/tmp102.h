@@ -14,7 +14,7 @@
 
 // Po zapnuti napajania a konfiguracie pockaj na prvu istu konverziu.
 #ifndef TMP102_POWER_SETTLE_MS
-#define TMP102_POWER_SETTLE_MS                 (50u)
+#define TMP102_POWER_SETTLE_MS                 (25u)
 #endif
 
 // Najnizsia uz nebezpecna teplota pre Apidra/Toujeo pero.

@@ -40,9 +40,11 @@
 /* Private typedef -----------------------------------------------------------*/
 
 /* Private define ------------------------------------------------------------*/
+/* Raw storage buffer for the whole RAM-backed block device. */
 uint8_t ram_disk[SECTOR_SIZE * NUM_SECTORS];
 
 /* Private variables ---------------------------------------------------------*/
+/* FatFS status flag for the single RAM disk instance. */
 static volatile DSTATUS Stat = STA_NOINIT;
 
 /* USER CODE END DECL */
@@ -58,6 +60,7 @@ DRESULT USER_read (BYTE pdrv, BYTE *buff, DWORD sector, UINT count);
   DRESULT USER_ioctl (BYTE pdrv, BYTE cmd, void *buff);
 #endif /* _USE_IOCTL == 1 */
 
+/* FatFS driver table for the single RAM-backed logical disk. */
 Diskio_drvTypeDef  USER_Driver =
 {
   USER_initialize,
@@ -72,6 +75,8 @@ Diskio_drvTypeDef  USER_Driver =
 };
 
 /* Private functions ---------------------------------------------------------*/
+
+/* Mark logical drive 0 as initialized; no external hardware probe is required. */
 
 /**
   * @brief  Initializes a Drive
@@ -110,6 +115,7 @@ DSTATUS USER_status (
   /* USER CODE END STATUS */
 }
 
+/* Copy sectors from the shared RAM-disk buffer into the caller's buffer. */
 /**
   * @brief  Reads Sector(s)
   * @param  pdrv: Physical drive number (0..)
@@ -139,6 +145,7 @@ DRESULT USER_read (
   /* USER CODE END READ */
 }
 
+/* Copy sectors from the caller's buffer back into the shared RAM-disk buffer. */
 /**
   * @brief  Writes Sector(s)
   * @param  pdrv: Physical drive number (0..)
@@ -170,6 +177,7 @@ DRESULT USER_write (
 }
 #endif /* _USE_WRITE == 1 */
 
+/* Report static RAM-disk geometry and synchronization capabilities to FatFS. */
 /**
   * @brief  I/O control operation
   * @param  pdrv: Physical drive number (0..)

@@ -8,6 +8,13 @@
 
 extern RTC_HandleTypeDef hrtc;
 
+/*
+ * Thin RTC abstraction around the CubeMX-created HAL handle.
+ * Backup registers are used to distinguish a valid running calendar from a
+ * freshly initialized one and to decide when the build timestamp should seed
+ * the RTC again.
+ */
+
 static bool rtc_driver_validate_time(const rtc_time_t *time);
 static bool rtc_driver_validate_date(const rtc_date_t *date);
 static void rtc_driver_fill_default_datetime(rtc_datetime_t *datetime);
@@ -68,6 +75,7 @@ static void rtc_driver_fill_default_datetime(rtc_datetime_t *datetime)
     datetime->time.seconds = 0u;
 }
 
+/* Hash of __DATE__/__TIME__ used to detect whether the firmware build changed. */
 static uint32_t rtc_driver_build_signature(void)
 {
     static const char build_id[] = __DATE__ " " __TIME__;
@@ -287,6 +295,7 @@ bool rtc_driver_has_valid_datetime(void)
     return (HAL_RTCEx_BKUPRead(&hrtc, RTC_DRIVER_VALID_BKP_REG) == RTC_DRIVER_VALID_MAGIC);
 }
 
+/* Seed the RTC from build time only when backup registers do not describe a valid current calendar. */
 bool rtc_driver_sync_build_datetime(void)
 {
     rtc_datetime_t build_datetime;
@@ -328,6 +337,7 @@ uint32_t rtc_driver_get_fattime(void)
            ((uint32_t)datetime.time.seconds / 2u);
 }
 
+/* RTC wakeup timer acts as the periodic heartbeat for the superloop low-power scheduler. */
 bool rtc_driver_start_wakeup(uint32_t period_seconds)
 {
     if (!rtc_driver_init()) {

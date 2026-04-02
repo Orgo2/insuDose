@@ -27,6 +27,13 @@
 
 /* USER CODE END Includes */
 
+/*
+ * Minimal FatFS glue.
+ * Cube expects one linked disk I/O driver and a get_fattime() provider. The
+ * actual medium is the RAM disk implemented in user_diskio.c and shared with
+ * the logger / USB MSC path.
+ */
+
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
 typedef enum {
@@ -52,6 +59,7 @@ FATFS USERFatFs;    /* File system object for USER logical drive */
 FIL USERFile;       /* File  object for USER */
 char USERPath[4];   /* USER logical drive path */
 /* USER CODE BEGIN PV */
+/* Cube example state variable; in this project it only tracks that the driver was linked. */
 FS_FileOperationsTypeDef Appli_state = APPLICATION_IDLE;
 /* USER CODE END PV */
 
@@ -81,6 +89,7 @@ int32_t MX_FATFS_Init(void)
   /* USER CODE END FATFS_Init */
 }
 
+/* No standalone FatFS worker is needed; logger/runtime drive all file operations directly. */
 /**
   * @brief  FatFs application main process
   * @param  None
@@ -103,6 +112,7 @@ int32_t MX_FATFS_Process(void)
 DWORD get_fattime(void)
 {
   /* USER CODE BEGIN get_fattime */
+  /* FatFS timestamps files in DOS format using the RTC abstraction. */
   return rtc_driver_get_fattime();
   /* USER CODE END get_fattime */
 }

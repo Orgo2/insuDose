@@ -8,31 +8,63 @@
 #include "../../Drivers/Display/Display_EPD_W21_spi.h"
 #include "../../Drivers/Display/GUI_Paint.h"
 #include "../../Drivers/Display/fonts.h"
+#include "mic_pdm.h"
 #include "../../USB_Device/Logger/logger.h"
 
+/*
+ * E-paper view model.
+ * The module caches the last data that should be visible on screen and starts
+ * a physical refresh only when the rendered output changed. The EPD driver is
+ * asynchronous, so the rest of the firmware can keep running while the panel
+ * finishes its internal update.
+ */
+
+/* Startup delay before the first visible refresh after the power-on white clear. */
 #define APP_DISPLAY_STARTUP_DELAY_MS 1000u
+/* Period for re-evaluating elapsed time and USB charge text on screen. */
 #define APP_DISPLAY_PERIODIC_REFRESH_MS 60000u
+/* Sentinel meaning that elapsed time cannot be computed from RTC data. */
 #define APP_DISPLAY_ELAPSED_INVALID  UINT32_MAX
+/* Clamp displayed elapsed time to MM:SS-style two-digit hours and minutes. */
 #define APP_DISPLAY_ELAPSED_MAX_MIN  ((99u * 60u) + 99u)
 
+/* Raw framebuffer sent to the panel when a new frame is committed. */
 static uint8_t s_display_framebuffer[EPD_ARRAY];
+/* True after Paint_* helpers were bound to the framebuffer memory. */
 static bool s_framebuffer_ready = false;
+/* True until the initial all-white panel clear was successfully started. */
 static bool s_startup_clear_pending = false;
+/* True when cached screen content no longer matches the last rendered frame. */
 static bool s_display_dirty = false;
+/* True while USB charging/session screen should be shown instead of dose history. */
 static bool s_usb_session_active = false;
+/* True after at least one valid dose event was recorded for display. */
 static bool s_has_last_dose = false;
+/* True after a microphone diagnostic result was captured and should be shown. */
 static bool s_has_mic_debug = false;
+/* Dose value shown in the large left-hand field. */
 static uint8_t s_last_dose_units = 0u;
+/* Temperature sampled around the last dose event. */
 static int8_t s_last_dose_temp_c = LOG_NO_TEMP;
+/* Battery voltage sampled around the last dose event. */
 static int32_t s_last_dose_battery_mv = -1;
+/* True when the last dose also has a valid RTC timestamp. */
 static bool s_last_dose_datetime_valid = false;
+/* RTC timestamp used to compute elapsed time since the last dose. */
 static rtc_datetime_t s_last_dose_datetime = {0};
+/* Last microphone capture diagnostics shown on the info line. */
 static mic_pdm_result_t s_last_mic_debug = {0};
+/* Earliest tick when another display operation may start. */
 static uint32_t s_startup_not_before_ms = 0u;
+/* Deadline for re-checking elapsed time since last dose. */
 static uint32_t s_next_elapsed_refresh_ms = 0u;
+/* Deadline for re-checking USB charging text / percentage. */
 static uint32_t s_next_usb_refresh_ms = 0u;
+/* Last elapsed-minutes value that was really rendered to the panel. */
 static uint32_t s_last_rendered_elapsed_minutes = APP_DISPLAY_ELAPSED_INVALID;
+/* Last USB charge state label rendered to the panel. */
 static int s_last_rendered_usb_status = -1;
+/* Last battery percent rendered in USB mode. */
 static int s_last_rendered_usb_percent = -1;
 
 static bool app_display_tick_expired(uint32_t deadline_ms);
@@ -275,27 +307,37 @@ static void app_display_format_mic_debug_line1(char *buffer, size_t buffer_len)
   }
 
   if (!s_last_mic_debug.valid) {
-    unsigned polarity_code = s_last_mic_debug.autodetect_failed ? 2u : (s_last_mic_debug.ckstr ? 1u : 0u);
+    if (s_last_mic_debug.pdm_words != 0u) {
+      (void)snprintf(buffer,
+                     buffer_len,
+                     "T%u Z%lu F%lu P%u-%u",
+                     (unsigned)s_last_mic_debug.diag_stage,
+                     (unsigned long)s_last_mic_debug.raw_zero_words,
+                     (unsigned long)s_last_mic_debug.raw_full_words,
+                     (unsigned)s_last_mic_debug.raw_popcount_min,
+                     (unsigned)s_last_mic_debug.raw_popcount_max);
+      return;
+    }
+
     (void)snprintf(buffer,
                    buffer_len,
-                   "E%uO%u A%uD%uP%uC%u R%02lX",
-                   s_last_mic_debug.dma_error ? 1u : 0u,
-                   s_last_mic_debug.overflow ? 1u : 0u,
-                   s_last_mic_debug.sai_enabled ? 1u : 0u,
-                   s_last_mic_debug.dma_enabled ? 1u : 0u,
-                   s_last_mic_debug.pdm_enabled ? 1u : 0u,
-                   polarity_code,
-                   (unsigned long)(s_last_mic_debug.sai_sr & 0xFFu));
+                   "T%uS%uE%02lXC%luN%lu",
+                   (unsigned)s_last_mic_debug.diag_stage,
+                   (unsigned)s_last_mic_debug.sai_state,
+                   (unsigned long)(s_last_mic_debug.sai_error & 0xFFu),
+                   (unsigned long)(s_last_mic_debug.sai_clk_hz / 1000000u),
+                   (unsigned long)s_last_mic_debug.dma_cndtr);
     return;
   }
 
-  (void)snprintf(buffer,
-                 buffer_len,
-                 "MP%u A%u S%lu W%lu",
-                 (unsigned)s_last_mic_debug.peak_abs,
-                 (unsigned)s_last_mic_debug.avg_abs,
-                 (unsigned long)s_last_mic_debug.pcm_samples,
-                 (unsigned long)s_last_mic_debug.pdm_words);
+  { int32_t cal = mic_pdm_get_bg_offset();
+    (void)snprintf(buffer,
+                   buffer_len,
+                   "P%u A%u C%ld",
+                   (unsigned)s_last_mic_debug.peak_abs,
+                   (unsigned)s_last_mic_debug.avg_abs,
+                   (long)cal);
+  }
 }
 
 static void app_display_render_frame(uint32_t *elapsed_minutes_out)
@@ -387,6 +429,7 @@ static void app_display_mark_usb_dirty_if_needed(void)
 
 bool app_display_init(void)
 {
+  /* Own the EPD GPIO block and prepare the framebuffer/painter state once at boot. */
   EPD_GPIO_Init();
 
   Paint_NewImage(s_display_framebuffer,
@@ -448,6 +491,7 @@ void app_display_note_dose(uint8_t dose_units,
                            const rtc_datetime_t *datetime,
                            bool datetime_valid)
 {
+  /* Update the cached view model now; the asynchronous task performs the real panel refresh later. */
   s_has_last_dose = true;
   s_last_dose_units = dose_units;
   s_last_dose_temp_c = temperature_c;
@@ -466,6 +510,7 @@ void app_display_note_dose(uint8_t dose_units,
 
 void app_display_note_mic_debug(const mic_pdm_result_t *result, int32_t battery_mv)
 {
+  /* Mic debug shares the same cached screen model and only marks the frame dirty. */
   if (result == NULL) {
     s_has_mic_debug = false;
     memset(&s_last_mic_debug, 0, sizeof(s_last_mic_debug));
@@ -479,6 +524,7 @@ void app_display_note_mic_debug(const mic_pdm_result_t *result, int32_t battery_
   s_display_dirty = true;
 }
 
+/* Pump the asynchronous EPD driver and commit a new frame only when content changed. */
 void app_display_task(void)
 {
   uint32_t elapsed_minutes = APP_DISPLAY_ELAPSED_INVALID;

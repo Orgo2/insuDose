@@ -24,6 +24,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "app_runtime.h"
+/* main.c keeps CubeMX-generated peripheral bring-up; app_runtime.c owns the application flow. */
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -118,6 +119,7 @@ int main(void)
   MX_SAI1_Init();
   MX_CRC_Init();
   /* USER CODE BEGIN 2 */
+  /* Hand control to the higher-level runtime once all HAL handles exist. */
   if (!app_runtime_init(&hi2c1, &hlptim1)) {
     Error_Handler();
   }
@@ -130,6 +132,7 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+    /* The application is organized as one cooperative superloop tick. */
     app_runtime_tick();
   }
   /* USER CODE END 3 */
@@ -677,6 +680,7 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+/* Hardware callbacks are forwarded to app_runtime so policy stays out of generated code. */
 void HAL_RTCEx_WakeUpTimerEventCallback(RTC_HandleTypeDef *rtc)
 {
   (void)rtc;

@@ -52,7 +52,7 @@ Core/Src/app_display.o: ../Core/Src/app_display.c \
  ../Core/Src/../../Drivers/Display/Display_EPD_W21_spi.h \
  ../Core/Src/../../Drivers/Display/GUI_Paint.h \
  ../Core/Src/../../Drivers/Display/fonts.h \
- ../Core/Src/../../Drivers/Display/fonts.h \
+ ../Core/Src/../../Drivers/Display/fonts.h ../Core/Inc/mic_pdm.h \
  ../Core/Src/../../USB_Device/Logger/logger.h ../FATFS/App/app_fatfs.h \
  ../Middlewares/Third_Party/FatFs/src/ff.h \
  ../Middlewares/Third_Party/FatFs/src/integer.h ../FATFS/Target/ffconf.h \
@@ -118,6 +118,7 @@ Core/Src/app_display.o: ../Core/Src/app_display.c \
 ../Core/Src/../../Drivers/Display/GUI_Paint.h:
 ../Core/Src/../../Drivers/Display/fonts.h:
 ../Core/Src/../../Drivers/Display/fonts.h:
+../Core/Inc/mic_pdm.h:
 ../Core/Src/../../USB_Device/Logger/logger.h:
 ../FATFS/App/app_fatfs.h:
 ../Middlewares/Third_Party/FatFs/src/ff.h:

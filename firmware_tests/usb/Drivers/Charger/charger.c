@@ -12,12 +12,26 @@
 extern ADC_HandleTypeDef hadc1;
 #endif
 
+/*
+ * Charger policy module.
+ * It samples battery voltage, tracks VIN/CHG state and decides whether the
+ * external charger should be enabled. The rest of the firmware reads the
+ * cached charger_info_t instead of touching charger-specific GPIO or ADC logic.
+ */
+
+/* True after charger GPIO ownership was initialized once. */
 static uint8_t        s_inited = 0;
+/* Current logical charger enable state driven onto CHARGER_CEN_Pin. */
 static bool           s_enabled = false;
+/* User/system permission to charge when hardware and battery type allow it. */
 static bool           s_charge_allowed = (CHARGER_BATTERY_RECHARGEABLE != 0);
+/* Previous VIN presence used to detect rising edges and apply boot hysteresis. */
 static bool           s_last_vin_present = false;
+/* Tick until which charging stays forced on after VIN appears. */
 static uint32_t       s_force_enable_until_ms = 0;
+/* Tick for the next battery ADC measurement. */
 static uint32_t       s_next_measure_ms = 0;
+/* Public snapshot of charger and battery state for the rest of the system. */
 static charger_info_t s_info = {
     .battery_mv     = -1,
     .battery_v      = -1.0f,
@@ -44,6 +58,7 @@ static inline bool tick_reached(uint32_t now, uint32_t target)
     return ((int32_t)(now - target) >= 0);
 }
 
+/* Local ownership of charger-related GPIO setup lives here instead of app code. */
 static void charger_gpio_init_once(void)
 {
     if (s_inited) {
@@ -88,6 +103,7 @@ void charger_set_enabled(bool enable)
     s_info.charge_enabled = enable;
 }
 
+/* Boot-time reset of the charger policy before periodic charger_task() takes over. */
 void charger_init(void)
 {
     charger_gpio_init_once();
@@ -203,6 +219,7 @@ static bool charger_restore_allowed_now(bool vin_present)
     return (s_info.battery_valid && ((uint32_t)s_info.battery_mv >= CHARGER_BAT_RESTORE_MV));
 }
 
+/* Main charger policy step called from the superloop, with no charger-specific ISR dependency. */
 void charger_task(bool vin_present)
 {
     uint32_t now = HAL_GetTick();
@@ -313,6 +330,7 @@ bool charger_is_charging_fast(void)
     return (charger_get_status_fast(s_info.vin_present) == CHARGER_STATUS_CHARGING);
 }
 
+/* Shared ADC handle is reconfigured here before each VREFINT/VBAT measurement sequence. */
 int32_t charger_read_bat(void)
 {
 #if CHARGER_USE_ADC && defined(CHARGER_ADC_CHANNEL)

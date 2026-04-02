@@ -17,6 +17,6 @@
 ../Core/Src/stm32wbxx_it.c:307:6:USB_LP_IRQHandler	1
 ../Core/Src/stm32wbxx_it.c:321:6:EXTI9_5_IRQHandler	1
 ../Core/Src/stm32wbxx_it.c:335:6:SAI1_IRQHandler	1
-../Core/Src/stm32wbxx_it.c:348:6:RTC_Alarm_IRQHandler	1
-../Core/Src/stm32wbxx_it.c:362:6:FPU_IRQHandler	1
-../Core/Src/stm32wbxx_it.c:373:6:PVD_PVM_IRQHandler	1
+../Core/Src/stm32wbxx_it.c:349:6:RTC_Alarm_IRQHandler	1
+../Core/Src/stm32wbxx_it.c:363:6:FPU_IRQHandler	1
+../Core/Src/stm32wbxx_it.c:374:6:PVD_PVM_IRQHandler	1

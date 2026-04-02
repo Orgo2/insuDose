@@ -11,7 +11,19 @@
 #include "../../USB_Device/Logger/logger.h"
 #include "../../USB_Device/Target/usbd_conf.h"
 
+/*
+ * Central application runtime.
+ * This file ties together charger, temperature sensing, microphone capture,
+ * display refresh, USB mass storage and low-power entry. IRQ callbacks only
+ * mark events; app_runtime_tick() performs the real work in one place.
+ */
+
+/* RTC wakeup period in seconds. This defines how often the low-power loop gets
+ * a guaranteed periodic wake event even when no GPIO interrupt occurs.
+ */
 #define APP_RUNTIME_RTC_WAKEUP_PERIOD_S 1u
+/* Maximum time to wait for mic capture before processing dose without mic data. */
+#define APP_DOSE_MIC_TIMEOUT_MS         2000u
 
 typedef enum
 {
@@ -22,17 +34,44 @@ typedef enum
 void SystemClock_Config(void);
 void PeriphCommonClock_Config(void);
 
+/* Flags changed from callbacks and consumed in the cooperative main loop. */
 static volatile app_sys_state_t s_state = SYS_RUNNING;
+/* Cached external power/VIN presence sampled from the power-detect GPIO. */
 static volatile uint8_t s_power_detect_present = 0u;
+/* Latched request to create one dose log entry after a full button cycle. */
 static volatile uint8_t s_dose_log_pending = 0u;
+/* Latched request to start microphone capture on dose edge. */
 static volatile uint8_t s_dose_mic_start_pending = 0u;
+/* Latched request to stop microphone capture after the dose edge is complete. */
 static volatile uint8_t s_dose_mic_stop_pending = 0u;
+/* Periodic or PVD-triggered wake request to refresh battery state. */
 static volatile uint8_t s_wake_lowbatt = 0u;
+/* Tracks whether the dose button is currently inside a valid press/release cycle. */
 static volatile uint8_t s_dose_cycle_armed = 0u;
+/* HAL tick when s_dose_log_pending was set; used to timeout stuck mic capture. */
+static volatile uint32_t s_dose_log_request_tick = 0u;
 
+/* True while the host actively owns the RAM disk over USB MSC. */
 static bool s_usb_session_active = false;
+/* True after MX_USB_Device_Init() brought up the USB stack once. */
 static bool s_usb_stack_started = false;
+/* Result of mic_pdm_init(); gates all microphone-specific paths. */
 static bool s_mic_available = false;
+/* True when the last completed microphone capture result is still waiting to be shown. */
+static bool s_pending_mic_result_valid = false;
+/* Cached result of the most recent microphone capture around a dose event. */
+static mic_pdm_result_t s_pending_mic_result = {0};
+
+/* Mic background calibration (triggered by Enter button hold). */
+typedef enum {
+  MIC_CAL_IDLE = 0,
+  MIC_CAL_REQUESTED,       /* Enter pressed, waiting to start capture */
+  MIC_CAL_WARMUP,          /* first 1000 ms: capture running, data discarded */
+  MIC_CAL_MEASURING,       /* next 1000 ms: averaging the CIC output */
+  MIC_CAL_DONE
+} mic_cal_state_t;
+static mic_cal_state_t s_mic_cal_state = MIC_CAL_IDLE;
+static uint32_t s_mic_cal_phase_start = 0u;
 
 static uint8_t app_read_power_detect(void);
 static bool app_is_power_present(void);
@@ -53,6 +92,7 @@ static void app_ensure_ramdisk_ready(void);
 static bool app_prepare_ramdisk_for_usb(void);
 static void app_snapshot_ramdisk_for_sleep(void);
 
+/* High-level startup after CubeMX created the raw HAL handles and clocks. */
 bool app_runtime_init(I2C_HandleTypeDef *temp_i2c,
                       LPTIM_HandleTypeDef *beeper_timer)
 {
@@ -108,11 +148,10 @@ bool app_runtime_init(I2C_HandleTypeDef *temp_i2c,
   return true;
 }
 
+/* One cooperative scheduler step: consume events, run services, then choose sleep depth. */
 void app_runtime_tick(void)
 {
   mic_pdm_result_t mic_result;
-  charger_info_t charger_info;
-  int32_t battery_mv = -1;
 
   app_update_power_detect();
   beeper_tick();
@@ -126,8 +165,13 @@ void app_runtime_tick(void)
 
   if (s_mic_available && (s_dose_mic_start_pending != 0u) &&
       !s_usb_session_active && !mic_pdm_is_active()) {
-    s_dose_mic_start_pending = 0u;
-    (void)mic_pdm_start();
+    if (mic_pdm_start()) {
+      s_dose_mic_start_pending = 0u;
+    } else {
+      /* Mic is only a sidecar; a failed start must never block the dose flow. */
+      s_dose_mic_start_pending = 0u;
+      s_dose_mic_stop_pending = 0u;
+    }
   }
 
   if (s_mic_available && (s_dose_mic_stop_pending != 0u) && mic_pdm_is_active()) {
@@ -135,16 +179,68 @@ void app_runtime_tick(void)
     mic_pdm_request_stop();
   }
 
+  if (s_mic_available && (s_dose_mic_stop_pending != 0u) &&
+      (s_dose_mic_start_pending == 0u) && !mic_pdm_is_active()) {
+    s_dose_mic_stop_pending = 0u;
+  }
+
   if (s_mic_available) {
     mic_pdm_task();
     if (mic_pdm_take_result(&mic_result)) {
-      memset(&charger_info, 0, sizeof(charger_info));
-      charger_get_info(&charger_info);
-      if (charger_info.battery_valid) {
-        battery_mv = charger_info.battery_mv;
+      if (s_mic_cal_state == MIC_CAL_DONE) {
+        /* Calibration capture finished — use signed average as DC offset. */
+        mic_pdm_set_bg_offset(mic_result.avg_signed);
+        s_mic_cal_state = MIC_CAL_IDLE;
+      } else {
+        s_pending_mic_result = mic_result;
+        s_pending_mic_result_valid = true;
       }
-      app_display_note_mic_debug(&mic_result, battery_mv);
     }
+  }
+
+  /* --- Mic background calibration state machine --- */
+  switch (s_mic_cal_state) {
+  case MIC_CAL_REQUESTED:
+    /* Clear any previous offset so the measurement capture is raw. */
+    mic_pdm_set_bg_offset(0);
+    if (mic_pdm_start()) {
+      s_mic_cal_phase_start = HAL_GetTick();
+      s_mic_cal_state = MIC_CAL_WARMUP;
+    } else {
+      s_mic_cal_state = MIC_CAL_IDLE;
+    }
+    break;
+
+  case MIC_CAL_WARMUP:
+    /* After 1000 ms warmup, stop the throwaway capture and start the real one. */
+    if ((int32_t)(HAL_GetTick() - s_mic_cal_phase_start) >= 1000) {
+      mic_pdm_force_stop();
+      /* Discard warmup result. */
+      (void)mic_pdm_take_result(&mic_result);
+      if (mic_pdm_start()) {
+        s_mic_cal_phase_start = HAL_GetTick();
+        s_mic_cal_state = MIC_CAL_MEASURING;
+      } else {
+        s_mic_cal_state = MIC_CAL_IDLE;
+      }
+    }
+    break;
+
+  case MIC_CAL_MEASURING:
+    /* After 1000 ms of real measurement, stop and let take_result handle it. */
+    if ((int32_t)(HAL_GetTick() - s_mic_cal_phase_start) >= 1000) {
+      mic_pdm_request_stop();
+      s_mic_cal_state = MIC_CAL_DONE;
+    }
+    break;
+
+  case MIC_CAL_DONE:
+    /* Waiting for mic_pdm_task() to finalize and take_result above to grab it. */
+    break;
+
+  case MIC_CAL_IDLE:
+  default:
+    break;
   }
 
   if (!app_is_mic_capture_active()) {
@@ -173,6 +269,7 @@ void app_runtime_tick(void)
   app_sleep_until_event();
 }
 
+/* EXTI callbacks are translated into application events and deferred state changes. */
 void app_runtime_on_exti(uint16_t gpio_pin)
 {
   if (gpio_pin == Power_Detect_Pin) {
@@ -181,8 +278,10 @@ void app_runtime_on_exti(uint16_t gpio_pin)
   }
 
   if (gpio_pin == Dose_Pin) {
-    if (HAL_GPIO_ReadPin(Dose_GPIO_Port, Dose_Pin) == GPIO_PIN_RESET) {
+    if (HAL_GPIO_ReadPin(Dose_GPIO_Port, Dose_Pin) == GPIO_PIN_SET) {
       s_dose_cycle_armed = 1u;
+      s_pending_mic_result_valid = false;
+      memset(&s_pending_mic_result, 0, sizeof(s_pending_mic_result));
       if (s_mic_available && !s_usb_session_active) {
         tmp102_set_enabled(false);
         s_dose_mic_start_pending = 1u;
@@ -191,7 +290,9 @@ void app_runtime_on_exti(uint16_t gpio_pin)
     } else if (s_dose_cycle_armed != 0u) {
       s_dose_cycle_armed = 0u;
       s_dose_log_pending = 1u;
-      if (s_mic_available) {
+      s_dose_log_request_tick = HAL_GetTick();
+      if (s_mic_available &&
+          ((s_dose_mic_start_pending != 0u) || mic_pdm_is_active())) {
         s_dose_mic_stop_pending = 1u;
       }
     }
@@ -200,6 +301,15 @@ void app_runtime_on_exti(uint16_t gpio_pin)
 
   if (gpio_pin == Temp_Alert_Pin) {
     tmp102_notify_alert_irq();
+  }
+
+  if (gpio_pin == Enter_Pin) {
+    /* Only trigger calibration on press (rising edge) when idle. */
+    if ((s_mic_cal_state == MIC_CAL_IDLE) && s_mic_available &&
+        !s_usb_session_active && !mic_pdm_is_active() &&
+        (s_dose_mic_start_pending == 0u)) {
+      s_mic_cal_state = MIC_CAL_REQUESTED;
+    }
   }
 }
 
@@ -248,7 +358,6 @@ static bool app_is_mic_capture_active(void)
 {
   return s_mic_available &&
          ((s_dose_mic_start_pending != 0u) ||
-          (s_dose_mic_stop_pending != 0u) ||
           mic_pdm_is_active());
 }
 
@@ -266,6 +375,7 @@ static void app_usb_session_leave(void)
   app_display_set_usb_session_active(false);
 }
 
+/* Decide whether the system may drop to STOP2 or must stay in shallow sleep/WFI. */
 static void app_sleep_until_event(void)
 {
   if (s_usb_session_active || s_usb_stack_started || beeper_is_active() ||
@@ -292,6 +402,7 @@ static void app_update_power_detect(void)
   s_power_detect_present = app_read_power_detect();
 }
 
+/* Recover the RAM disk and TMP102 metadata from flash only when power conditions allow it. */
 static bool app_restore_ramdisk_if_allowed(void)
 {
   tmp102_backup_t tmp102_backup;
@@ -323,6 +434,7 @@ static bool app_restore_ramdisk_if_allowed(void)
   return logger_mount_ramdisk();
 }
 
+/* Choose storage source at boot: keep valid RAM disk, restore snapshot or create a new one. */
 static void app_ensure_ramdisk_ready(void)
 {
   if (!logger_ramdisk_is_empty()) {
@@ -340,6 +452,7 @@ static void app_ensure_ramdisk_ready(void)
   }
 }
 
+/* Ensure the RAM disk is mounted and coherent before USB exposes it to the host. */
 static bool app_prepare_ramdisk_for_usb(void)
 {
   if (logger_ramdisk_is_empty()) {
@@ -349,6 +462,7 @@ static bool app_prepare_ramdisk_for_usb(void)
   return logger_mount_ramdisk();
 }
 
+/* Store the live log and temperature history into flash before battery-empty sleep. */
 static void app_snapshot_ramdisk_for_sleep(void)
 {
   tmp102_backup_t tmp102_backup;
@@ -362,6 +476,7 @@ static void app_snapshot_ramdisk_for_sleep(void)
   }
 }
 
+/* One-time USB stack startup; later code only tracks whether the host session is active. */
 static bool app_usb_stack_start(void)
 {
   if (s_usb_stack_started) {
@@ -378,6 +493,7 @@ static bool app_usb_stack_start(void)
   return true;
 }
 
+/* Translate low-level USB link state into application ownership of the RAM disk and UI. */
 static void app_usb_state_tick(void)
 {
   bool usb_active_now = app_is_usb_session_active();
@@ -401,6 +517,7 @@ static void app_usb_state_tick(void)
   s_state = SYS_RUNNING;
 }
 
+/* Finalize one logical dose event once all related sensor/mic state is available. */
 static void app_buttons_tick(void)
 {
   charger_info_t charger_info;
@@ -414,20 +531,37 @@ static void app_buttons_tick(void)
     return;
   }
 
-  s_dose_log_pending = 0u;
-
   if (s_usb_session_active) {
+    s_dose_log_pending = 0u;
     beeper_play(40u);
     return;
   }
 
+  if (app_is_mic_capture_active()) {
+    if ((int32_t)(HAL_GetTick() - s_dose_log_request_tick) < (int32_t)APP_DOSE_MIC_TIMEOUT_MS) {
+      return;
+    }
+    /* Mic timed out — force-stop and finalize immediately so diagnostic
+     * result is available for display even when capture produced no data.
+     */
+    s_dose_mic_start_pending = 0u;
+    s_dose_mic_stop_pending = 0u;
+    mic_pdm_force_stop();
+    /* Grab whatever result (possibly invalid) the forced finalize produced. */
+    if (s_mic_available) {
+      mic_pdm_result_t timeout_result;
+      if (mic_pdm_take_result(&timeout_result)) {
+        s_pending_mic_result = timeout_result;
+        s_pending_mic_result_valid = true;
+      }
+    }
+  }
+
+  s_dose_log_pending = 0u;
+
   memset(&charger_info, 0, sizeof(charger_info));
   charger_get_info(&charger_info);
-  if (app_is_mic_capture_active()) {
-    (void)tmp102_get_last_temperature_rounded(&logged_temp);
-  } else {
-    (void)tmp102_read_temperature_now_rounded(&logged_temp);
-  }
+  (void)tmp102_get_last_temperature_rounded(&logged_temp);
   datetime_valid = rtc_driver_has_valid_datetime() && rtc_driver_get_datetime(&dose_datetime);
   log_written = append_log_rotating(dose_units, logged_temp);
   (void)log_written;
@@ -436,4 +570,8 @@ static void app_buttons_tick(void)
                         charger_info.battery_valid ? charger_info.battery_mv : -1,
                         datetime_valid ? &dose_datetime : NULL,
                         datetime_valid);
+  if (s_pending_mic_result_valid) {
+    app_display_note_mic_debug(&s_pending_mic_result,
+                               charger_info.battery_valid ? charger_info.battery_mv : -1);
+  }
 }

@@ -30,6 +30,13 @@
 
 /* USER CODE END Includes */
 
+/*
+ * USB device startup glue.
+ * This file only assembles the Cube USB device stack: descriptors, MSC class
+ * and the RAM-disk-backed storage interface. app_runtime decides when this
+ * startup should happen and how USB session state affects the rest of the app.
+ */
+
 /* USER CODE BEGIN PV */
 /* Private variables ---------------------------------------------------------*/
 
@@ -42,7 +49,9 @@
 
 extern void Error_Handler(void);
 /* USB Device Core handle declaration. */
+/* Root USB device object used by the Cube middleware. */
 USBD_HandleTypeDef hUsbDeviceFS;
+/* Descriptor table describing this device to the host. */
 extern USBD_DescriptorsTypeDef MSC_Desc;
 
 /*
@@ -70,6 +79,7 @@ void MX_USB_Device_Init(void)
   /* USER CODE END USB_Device_Init_PreTreatment */
 
   /* Init Device Library, add supported class and start the library. */
+  /* Order matters: device core -> class registration -> storage binding -> start enumeration. */
   if (USBD_Init(&hUsbDeviceFS, &MSC_Desc, DEVICE_FS) != USBD_OK) {
     Error_Handler();
   }

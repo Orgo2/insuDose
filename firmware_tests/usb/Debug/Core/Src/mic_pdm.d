@@ -46,8 +46,7 @@ Core/Src/mic_pdm.o: ../Core/Src/mic_pdm.c ../Core/Inc/mic_pdm.h \
  ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_sai.h \
  ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_sai_ex.h \
  ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_system.h \
- ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_gpio_ex.h \
- ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_rcc_ex.h
+ ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_sai_ex.h
 ../Core/Inc/mic_pdm.h:
 ../Core/Inc/main.h:
 ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal.h:
@@ -97,5 +96,4 @@ Core/Src/mic_pdm.o: ../Core/Src/mic_pdm.c ../Core/Inc/mic_pdm.h \
 ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_sai.h:
 ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_sai_ex.h:
 ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_system.h:
-../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_gpio_ex.h:
-../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_rcc_ex.h:
+../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_sai_ex.h:

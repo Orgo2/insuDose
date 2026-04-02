@@ -18,28 +18,57 @@
 #define TMP102_CONFIG_MSB               0x60u
 #define TMP102_CONFIG_LSB               0x00u
 
+/*
+ * TMP102 service state machine.
+ * The sensor is power-gated, configured lazily after power-up and then sampled
+ * either periodically in idle mode or more aggressively while the overtemp
+ * alarm is active. ALERT IRQs only mark that the state machine must re-check
+ * the alert path; all I2C transactions stay outside IRQ context.
+ */
+
 typedef struct
 {
+    /* Bound CubeMX-created I2C handle used for all blocking TMP102 transfers. */
     I2C_HandleTypeDef *i2c;
+    /* True after tmp102_init() bound the handle and cleared software state. */
     bool initialized;
+    /* Desired logical enable state requested by the application. */
     bool enabled;
+    /* Actual sensor rail state driven through Temp_PWR. */
     bool powered;
+    /* True after configuration registers were written after the last power-up. */
     bool configured;
+    /* True when temperature_dC currently holds a valid sample. */
     bool temperature_valid;
+    /* Current interpretation of the ALERT pin / overtemperature state. */
     bool alarm_active;
+    /* True when max_temperature_dC contains valid alarm-history data. */
     bool max_temperature_valid;
+    /* True when overtemp_start_datetime contains a valid timestamp. */
     bool overtemp_start_valid;
+    /* True when last_overtemp_end_datetime contains a valid timestamp. */
     bool last_overtemp_end_valid;
+    /* Set from EXTI to force alarm state re-evaluation in tmp102_task(). */
     bool alert_irq_pending;
+    /* Last measured temperature in deci-degrees Celsius. */
     int16_t temperature_dC;
+    /* Maximum observed temperature during overtemp history in deci-degrees. */
     int16_t max_temperature_dC;
+    /* Tick when the sensor rail was enabled; used for power-settle delay. */
     uint32_t power_on_tick_ms;
+    /* Tick of the last idle-mode temperature sample. */
     uint32_t last_idle_sample_tick_ms;
+    /* Earliest tick when another I2C attempt is allowed after a retry/backoff. */
     uint32_t next_retry_tick_ms;
+    /* Accumulated overtemperature duration already closed by alarm deassert. */
     uint32_t overtemp_completed_s;
+    /* Timestamp of the last overtemp sample, used to rate-limit alarm sampling. */
     uint32_t last_overtemp_sample_s;
+    /* Timestamp of the maximum observed temperature. */
     rtc_datetime_t max_temperature_datetime;
+    /* Timestamp when the current overtemperature interval began. */
     rtc_datetime_t overtemp_start_datetime;
+    /* Timestamp when the most recent overtemperature interval ended. */
     rtc_datetime_t last_overtemp_end_datetime;
 } tmp102_context_t;
 
@@ -62,6 +91,7 @@ static void tmp102_handle_alarm_deassert(void);
 static bool tmp102_tick_due(uint32_t now, uint32_t deadline);
 static int8_t tmp102_round_dC_to_c(int16_t temperature_dC);
 
+/* Bind the service to the I2C handle and reset all software-maintained history. */
 bool tmp102_init(I2C_HandleTypeDef *i2c)
 {
     if ((i2c == NULL) || (i2c->Instance != I2C1)) {
@@ -75,6 +105,7 @@ bool tmp102_init(I2C_HandleTypeDef *i2c)
     return true;
 }
 
+/* Enabling powers the sensor and restarts its post-power-up configuration workflow. */
 void tmp102_set_enabled(bool enabled)
 {
     if (!s_tmp102.initialized) {
@@ -91,7 +122,6 @@ void tmp102_set_enabled(bool enabled)
         HAL_GPIO_WritePin(Temp_PWR_GPIO_Port, Temp_PWR_Pin, GPIO_PIN_RESET);
         s_tmp102.powered = false;
         s_tmp102.configured = false;
-        s_tmp102.temperature_valid = false;
         s_tmp102.alert_irq_pending = false;
         return;
     }
@@ -99,13 +129,13 @@ void tmp102_set_enabled(bool enabled)
     HAL_GPIO_WritePin(Temp_PWR_GPIO_Port, Temp_PWR_Pin, GPIO_PIN_SET);
     s_tmp102.powered = true;
     s_tmp102.configured = false;
-    s_tmp102.temperature_valid = false;
     s_tmp102.power_on_tick_ms = HAL_GetTick();
     s_tmp102.last_idle_sample_tick_ms = 0u;
     s_tmp102.next_retry_tick_ms = s_tmp102.power_on_tick_ms;
     s_tmp102.alert_irq_pending = true;
 }
 
+/* Main TMP102 state machine: settle power, configure sensor, then sample by mode. */
 void tmp102_task(void)
 {
     uint32_t now_tick_ms;
@@ -186,6 +216,7 @@ void tmp102_task(void)
     }
 }
 
+/* ALERT EXTI only schedules a re-check; the actual state handling stays in task context. */
 void tmp102_notify_alert_irq(void)
 {
     if (!s_tmp102.initialized) {
@@ -308,6 +339,7 @@ void tmp102_alarm_reset(void)
     }
 }
 
+/* Persist alarm history together with the RAM-disk snapshot used for recovery. */
 void tmp102_export_backup(tmp102_backup_t *backup)
 {
     if (backup == NULL) {
@@ -337,6 +369,7 @@ void tmp102_export_backup(tmp102_backup_t *backup)
     }
 }
 
+/* Restore previously snapshotted alarm history after the RAM disk is recovered. */
 bool tmp102_import_backup(const tmp102_backup_t *backup)
 {
     if ((backup == NULL) || (backup->version != TMP102_BACKUP_VERSION)) {
@@ -430,6 +463,7 @@ static bool tmp102_write_register(uint8_t reg, const uint8_t *data, uint16_t len
                                     TMP102_I2C_TIMEOUT_MS) == HAL_OK);
 }
 
+/* Blocking I2C helpers are intentionally private and only used from task-level code paths. */
 static bool tmp102_read_register(uint8_t reg, uint8_t *data, uint16_t len)
 {
     if (data == NULL) {

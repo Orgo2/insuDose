@@ -25,6 +25,14 @@
 #include "../Logger/logger.h"
 /* USER CODE END INCLUDE */
 
+/*
+ * USB MSC block bridge.
+ * The host sees a plain block device; reads and writes are forwarded directly
+ * to the RAM-disk buffer used by FatFS and the logger. app_runtime is
+ * responsible for ensuring firmware-local writes stop while the USB host owns
+ * the medium.
+ */
+
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
 /* Private macro -------------------------------------------------------------*/
@@ -69,8 +77,10 @@
 /* USER CODE BEGIN PRIVATE_DEFINES */
 #undef STORAGE_BLK_NBR
 #undef STORAGE_BLK_SIZ
+/* Export the exact RAM-disk geometry to the USB MSC host. */
 #define STORAGE_BLK_SIZ SECTOR_SIZE
 #define STORAGE_BLK_NBR NUM_SECTORS
+/* Shared RAM-disk buffer defined by the FatFS user disk backend. */
 extern uint8_t ram_disk[];
 
 
@@ -175,6 +185,7 @@ USBD_StorageTypeDef USBD_Storage_Interface_fops_FS =
 };
 
 /* Private functions ---------------------------------------------------------*/
+/* No hardware medium init is needed because storage is just the in-memory RAM disk. */
 /**
   * @brief  Initializes over USB FS IP
   * @param  lun:
@@ -187,6 +198,7 @@ int8_t STORAGE_Init_FS(uint8_t lun)
   /* USER CODE END 2 */
 }
 
+/* RAM storage is always considered ready once the USB stack reaches this layer. */
 /**
   * @brief  .
   * @param  lun: .
@@ -203,6 +215,7 @@ int8_t STORAGE_GetCapacity_FS(uint8_t lun, uint32_t *block_num, uint16_t *block_
   /* USER CODE END 3 */
 }
 
+/* Copy block data from the shared RAM-disk buffer into the USB MSC transfer buffer. */
 /**
   * @brief  .
   * @param  lun: .
@@ -215,6 +228,7 @@ int8_t STORAGE_IsReady_FS(uint8_t lun)
   /* USER CODE END 4 */
 }
 
+/* Single-LUN MSC device: only one RAM-backed logical disk is exposed. */
 /**
   * @brief  .
   * @param  lun: .

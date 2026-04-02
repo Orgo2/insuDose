@@ -37,8 +37,17 @@
 
 /* Private variables ---------------------------------------------------------*/
 /* USER CODE BEGIN PV */
+/*
+ * Lightweight USB link-state cache used by app_runtime.
+ * These flags do not replace the Cube USB stack; they only summarize whether
+ * a host is connected, whether the link is suspended and when the last packet
+ * activity was seen.
+ */
+/* True after the host enumerated or otherwise interacted with the device. */
 static volatile uint8_t s_usb_link_connected = 0u;
+/* True while USB entered suspend; app code treats this as inactive session. */
 static volatile uint8_t s_usb_link_suspended = 0u;
+/* HAL tick of the most recent USB packet/control activity. */
 static volatile uint32_t s_usb_link_last_activity_ms = 0u;
 
 /* USER CODE END PV */
@@ -47,6 +56,7 @@ PCD_HandleTypeDef hpcd_USB_FS;
 void Error_Handler(void);
 
 /* USER CODE BEGIN 0 */
+/* Mark the link as alive and refresh the "recent activity" timestamp. */
 static void usbd_link_note_activity(void)
 {
   s_usb_link_connected = 1u;
@@ -106,6 +116,12 @@ extern void SystemClock_Config(void);
                        LL Driver Callbacks (PCD -> USB Device Library)
 *******************************************************************************/
 /* MSP Init */
+
+/*
+ * Cube/HAL owns the real USB peripheral. This file bridges between the PCD
+ * driver and the USB device stack, while also publishing a simplified link
+ * state to app_runtime.
+ */
 
 #if (USE_HAL_PCD_REGISTER_CALLBACKS == 1U)
 static void HAL_PCD_MspInit(PCD_HandleTypeDef* pcdHandle)
@@ -474,6 +490,14 @@ USBD_StatusTypeDef USBD_LL_Init(USBD_HandleTypeDef *pdev)
 /* Enable USB power on Pwrctrl CR2 register. */
   HAL_PWREx_EnableVddUSB();
 
+  /* Core USB device configuration:
+   * - dev_endpoints: number of endpoints available in the FS device core
+   * - speed: full-speed device mode
+   * - phy_itface: internal embedded USB PHY
+   * - Sof_enable: SOF callbacks not needed by this application
+   * - low_power_enable/lpm_enable: app_runtime owns low-power policy instead
+   * - battery_charging_enable: USB BC feature not used here
+   */
   hpcd_USB_FS.Instance = USB;
   hpcd_USB_FS.Init.dev_endpoints = 8;
   hpcd_USB_FS.Init.speed = PCD_SPEED_FULL;
@@ -516,10 +540,12 @@ USBD_StatusTypeDef USBD_LL_Init(USBD_HandleTypeDef *pdev)
   /* USER CODE END RegisterCallBackSecondPart */
 #endif /* USE_HAL_PCD_REGISTER_CALLBACKS */
   /* USER CODE BEGIN EndPoint_Configuration */
+  /* PMA memory layout for EP0 control endpoint. */
   HAL_PCDEx_PMAConfig((PCD_HandleTypeDef*)pdev->pData , 0x00 , PCD_SNG_BUF, 0x18);
   HAL_PCDEx_PMAConfig((PCD_HandleTypeDef*)pdev->pData , 0x80 , PCD_SNG_BUF, 0x58);
   /* USER CODE END EndPoint_Configuration */
   /* USER CODE BEGIN EndPoint_Configuration_MSC */
+  /* PMA buffers for MSC bulk IN/OUT endpoints. */
   HAL_PCDEx_PMAConfig((PCD_HandleTypeDef*)pdev->pData , 0x81 , PCD_SNG_BUF, 0x98);
   HAL_PCDEx_PMAConfig((PCD_HandleTypeDef*)pdev->pData , 0x01 , PCD_SNG_BUF, 0xD8);
   /* USER CODE END EndPoint_Configuration_MSC */
