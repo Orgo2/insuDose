@@ -25,7 +25,7 @@
  * With 8 raw PDM bits per DMA word (pair2-L byte) at ~93.75 kHz frame rate
  * the resulting PCM sample rate is 93750 × 8 / 16 ≈ 46.875 kHz.
  */
-#define MIC_PDM_CIC_ORDER             5u
+#define MIC_PDM_CIC_ORDER             4u
 #define MIC_PDM_CIC_DECIMATION        16u
 /* IM67D120 needs ~25 ms after clock restart before PDM output stabilises.
  * Skip this many DMA words at the start of each capture to avoid wakeup
@@ -33,6 +33,12 @@
  * At ~93.75 kHz frame rate: 2400 words ≈ 25.6 ms.
  */
 #define MIC_PDM_WAKEUP_SKIP_WORDS    2400u
+/* Number of decimated CIC output samples to discard after the wakeup skip.
+ * The CIC comb cascade starts from zero delay registers; the first ORDER
+ * output samples are dominated by startup transient, not real audio.
+ * 20 samples ≈ 0.4 ms at 46.875 kHz — negligible cost.
+ */
+#define MIC_PDM_CIC_SETTLE_SAMPLES   20u
 /* Debug option: keep the microphone power rail enabled even when idle. */
 #define MIC_PDM_DEBUG_ALWAYS_POWERED  1u
 
@@ -63,6 +69,7 @@ static uint32_t s_wakeup_skip = 0u;
 static uint32_t s_cic_int[MIC_PDM_CIC_ORDER];
 static uint32_t s_cic_comb[MIC_PDM_CIC_ORDER];
 static uint8_t s_cic_count = 0u;
+static uint32_t s_cic_settle = 0u;    /* decimated output samples still to discard */
 static int32_t s_bg_offset = 0;       /* background noise offset from Enter calibration */
 static mic_pdm_result_t s_result;
 
@@ -251,6 +258,7 @@ static void mic_pdm_reset_result(void)
   memset(s_cic_int, 0, sizeof(s_cic_int));
   memset(s_cic_comb, 0, sizeof(s_cic_comb));
   s_cic_count = 0u;
+  s_cic_settle = MIC_PDM_CIC_SETTLE_SAMPLES;
 }
 
 /* Track whether the raw DMA stream looks alive before any pseudo-PCM processing happens. */
@@ -333,8 +341,20 @@ static void mic_pdm_process_half(uint32_t start_index)
           y = tmp;
         }
 
-        /* CIC5 gain = R^N = 16^5 = 1048576 (21 bits); >> 5 for signed 16-bit. */
+        /* CIC4 gain = R^N = 16^4 = 65536 (17 bits); >> 5 keeps noise floor
+         * manageable (~130 avg_abs in silence) while fitting int16 range.
+         */
         pcm32 = (int32_t)y >> 5;
+
+        /* Discard the first CIC output samples: comb delay registers start
+         * at zero so the initial outputs carry a large startup transient
+         * that would corrupt peak/avg statistics.
+         */
+        if (s_cic_settle > 0u) {
+          s_cic_settle--;
+          continue;
+        }
+
         pcm = (int16_t)(pcm32 - s_bg_offset);
         s_result.last_sample = pcm;
         s_result.pcm_samples++;
