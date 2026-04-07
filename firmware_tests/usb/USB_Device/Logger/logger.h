@@ -17,7 +17,7 @@
 #define NUM_SECTORS       128u
 #define LOG_FILE_NAME     "0:/log.txt"
 #define LOG_FILE_SIZE     (SECTOR_SIZE * NUM_SECTORS)  // 64 kB
-#define MAX_LOG_LINE_LEN  96u
+#define MAX_LOG_LINE_LEN  256u
 
 // Sentinel hodnoty pre polia, ktore v danom zazname nemusia byt k dispozicii.
 #define LOG_NO_U8    0xFFu
@@ -51,6 +51,8 @@ bool logger_mount_ramdisk(void);
 // Logger berie cas a datum priamo z RTC. Ak RTC este nema validny datum/cas,
 // zapise namiesto timestampu 12 lomitok. Prve pole je poradove cislo zaznamu.
 bool append_log_rotating(uint8_t davka, int8_t teplota_c);
+bool append_log_scan(const uint16_t *avg, const uint16_t *bg, uint32_t nbins,
+                     uint32_t total_bins, const char *label);
 
 bool logger_persist_ramdisk_to_flash(void);
 bool logger_restore_ramdisk_from_flash(void);

@@ -330,13 +330,22 @@ static void app_display_format_mic_debug_line1(char *buffer, size_t buffer_len)
     return;
   }
 
-  { int32_t cal = mic_pdm_get_bg_offset();
+  if (s_last_mic_debug.scan_peak_k > 0u) {
+    /* Spike detector: R<ratio> P<peak_rms> B<bg_rms> <windows> */
     (void)snprintf(buffer,
                    buffer_len,
-                   "P%u A%u C%ld",
-                   (unsigned)s_last_mic_debug.peak_abs,
-                   (unsigned)s_last_mic_debug.avg_abs,
-                   (long)cal);
+                   "R%u P%lu B%lu %lu",
+                   (unsigned)s_last_mic_debug.scan_peak_k,
+                   (unsigned long)s_last_mic_debug.scan_peak_mag,
+                   (unsigned long)s_last_mic_debug.scan_target_mag,
+                   (unsigned long)s_last_mic_debug.goertzel_bins_total);
+  } else {
+    (void)snprintf(buffer,
+                   buffer_len,
+                   "G%lu/%lu T%u",
+                   (unsigned long)s_last_mic_debug.goertzel_bins_active,
+                   (unsigned long)s_last_mic_debug.goertzel_bins_total,
+                   (unsigned)(mic_pdm_get_goertzel_threshold() + 0.5f));
   }
 }
 

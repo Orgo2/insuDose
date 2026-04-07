@@ -24,6 +24,8 @@
 #define APP_RUNTIME_RTC_WAKEUP_PERIOD_S 1u
 /* Maximum time to wait for mic capture before processing dose without mic data. */
 #define APP_DOSE_MIC_TIMEOUT_MS         2000u
+/* Minimum hold time before a falling Dose edge is treated as a real release, not bounce. */
+#define APP_DOSE_DEBOUNCE_MS            100u
 
 typedef enum
 {
@@ -50,6 +52,8 @@ static volatile uint8_t s_wake_lowbatt = 0u;
 static volatile uint8_t s_dose_cycle_armed = 0u;
 /* HAL tick when s_dose_log_pending was set; used to timeout stuck mic capture. */
 static volatile uint32_t s_dose_log_request_tick = 0u;
+/* HAL tick when Dose 0→1 edge was detected; used for debounce on the 1→0 edge. */
+static volatile uint32_t s_dose_arm_tick = 0u;
 
 /* True while the host actively owns the RAM disk over USB MSC. */
 static bool s_usb_session_active = false;
@@ -188,9 +192,40 @@ void app_runtime_tick(void)
     mic_pdm_task();
     if (mic_pdm_take_result(&mic_result)) {
       if (s_mic_cal_state == MIC_CAL_DONE) {
-        /* Calibration capture finished — use signed average as DC offset. */
+        /* Calibration capture finished — use signed average as DC offset,
+         * compute Goertzel noise threshold from bin magnitudes (mean + 3σ).
+         */
         mic_pdm_set_bg_offset(mic_result.avg_signed);
+        mic_pdm_finish_goertzel_cal();
+        /* Log calibration result: spike detector background energy. */
+        {
+          uint16_t cal_vals[5];
+          cal_vals[0] = (uint16_t)mic_result.scan_target_mag;  /* bg_rms */
+          cal_vals[1] = (uint16_t)mic_result.scan_peak_mag;    /* peak_rms */
+          cal_vals[2] = (uint16_t)mic_result.scan_peak_k;      /* ratio */
+          cal_vals[3] = (uint16_t)mic_result.goertzel_bins_active; /* spikes_3x */
+          cal_vals[4] = (uint16_t)mic_result.spike_clusters;   /* clusters */
+          append_log_scan(cal_vals, cal_vals, 5u,
+                          mic_result.goertzel_bins_total, "CAL");
+        }
+        /* Log post-capture FFT spectrum for calibration capture. */
+        {
+          uint16_t fft_mags[MIC_PDM_FFT_BINS];
+          uint32_t fft_count = 0u;
+          if (mic_pdm_get_fft_spectrum(fft_mags, &fft_count)) {
+            uint32_t half = (fft_count > 16u) ? 16u : fft_count;
+            append_log_scan(fft_mags, fft_mags, half, fft_count, "CFL");
+            if (fft_count > 16u) {
+              append_log_scan(fft_mags + 16, fft_mags + 16,
+                              fft_count - 16u, fft_count, "CFH");
+            }
+          }
+        }
+        s_pending_mic_result = mic_result;
+        s_pending_mic_result_valid = true;
         s_mic_cal_state = MIC_CAL_IDLE;
+        /* Immediately show calibration threshold on display. */
+        app_display_note_mic_debug(&mic_result, -1);
       } else {
         s_pending_mic_result = mic_result;
         s_pending_mic_result_valid = true;
@@ -212,23 +247,19 @@ void app_runtime_tick(void)
     break;
 
   case MIC_CAL_WARMUP:
-    /* After 1000 ms warmup, stop the throwaway capture and start the real one. */
-    if ((int32_t)(HAL_GetTick() - s_mic_cal_phase_start) >= 1000) {
-      mic_pdm_force_stop();
-      /* Discard warmup result. */
-      (void)mic_pdm_take_result(&mic_result);
-      if (mic_pdm_start()) {
-        s_mic_cal_phase_start = HAL_GetTick();
-        s_mic_cal_state = MIC_CAL_MEASURING;
-      } else {
-        s_mic_cal_state = MIC_CAL_IDLE;
-      }
+    /* After 100 ms, button click noise has settled; start Goertzel calibration.
+     * Mic wakeup transient (25 ms) is already discarded internally by the driver.
+     */
+    if ((int32_t)(HAL_GetTick() - s_mic_cal_phase_start) >= 100) {
+      mic_pdm_start_goertzel_cal();
+      s_mic_cal_phase_start = HAL_GetTick();
+      s_mic_cal_state = MIC_CAL_MEASURING;
     }
     break;
 
   case MIC_CAL_MEASURING:
-    /* After 1000 ms of real measurement, stop and let take_result handle it. */
-    if ((int32_t)(HAL_GetTick() - s_mic_cal_phase_start) >= 1000) {
+    /* After 15 ms, ~11 Goertzel bins collected (N=64, ~1.37 ms/bin); stop. */
+    if ((int32_t)(HAL_GetTick() - s_mic_cal_phase_start) >= 15) {
       mic_pdm_request_stop();
       s_mic_cal_state = MIC_CAL_DONE;
     }
@@ -251,7 +282,9 @@ void app_runtime_tick(void)
 
   app_usb_state_tick();
   app_buttons_tick();
-  app_display_task();
+  if (!app_is_mic_capture_active()) {
+    app_display_task();
+  }
 
   if ((s_state == SYS_RUNNING) && logger_ramdisk_is_empty()) {
     if (app_restore_ramdisk_if_allowed()) {
@@ -279,6 +312,7 @@ void app_runtime_on_exti(uint16_t gpio_pin)
 
   if (gpio_pin == Dose_Pin) {
     if (HAL_GPIO_ReadPin(Dose_GPIO_Port, Dose_Pin) == GPIO_PIN_SET) {
+      s_dose_arm_tick = HAL_GetTick();
       s_dose_cycle_armed = 1u;
       s_pending_mic_result_valid = false;
       memset(&s_pending_mic_result, 0, sizeof(s_pending_mic_result));
@@ -288,6 +322,9 @@ void app_runtime_on_exti(uint16_t gpio_pin)
         s_dose_mic_stop_pending = 0u;
       }
     } else if (s_dose_cycle_armed != 0u) {
+      if ((int32_t)(HAL_GetTick() - s_dose_arm_tick) < (int32_t)APP_DOSE_DEBOUNCE_MS) {
+        return;
+      }
       s_dose_cycle_armed = 0u;
       s_dose_log_pending = 1u;
       s_dose_log_request_tick = HAL_GetTick();
@@ -565,6 +602,64 @@ static void app_buttons_tick(void)
   datetime_valid = rtc_driver_has_valid_datetime() && rtc_driver_get_datetime(&dose_datetime);
   log_written = append_log_rotating(dose_units, logged_temp);
   (void)log_written;
+
+  /* Write spike detector metrics to log file. */
+  if (s_pending_mic_result_valid) {
+    uint16_t spike_vals[5];
+    spike_vals[0] = (uint16_t)s_pending_mic_result.scan_target_mag;  /* bg_rms */
+    spike_vals[1] = (uint16_t)s_pending_mic_result.scan_peak_mag;    /* peak_rms */
+    spike_vals[2] = (uint16_t)s_pending_mic_result.scan_peak_k;      /* ratio */
+    spike_vals[3] = (uint16_t)s_pending_mic_result.goertzel_bins_active; /* spikes_3x */
+    spike_vals[4] = (uint16_t)s_pending_mic_result.spike_clusters;   /* clusters */
+    append_log_scan(spike_vals, spike_vals, 5u,
+                    s_pending_mic_result.goertzel_bins_total, "MES");
+    /* Log post-capture FFT spectrum for dose measurement. */
+    {
+      uint16_t fft_mags[MIC_PDM_FFT_BINS];
+      uint32_t fft_count = 0u;
+      if (mic_pdm_get_fft_spectrum(fft_mags, &fft_count)) {
+        uint32_t half = (fft_count > 16u) ? 16u : fft_count;
+        append_log_scan(fft_mags, fft_mags, half, fft_count, "FL");
+        if (fft_count > 16u) {
+          append_log_scan(fft_mags + 16, fft_mags + 16,
+                          fft_count - 16u, fft_count, "FH");
+        }
+      }
+    }
+    /* Temporary debug: EW value = 10 * EMA energy / background energy.
+     * Threshold guide: 15 = re-arm, 30 = detect.
+     */
+    {
+      const uint16_t *env = NULL;
+      uint32_t env_count = 0u;
+      if (mic_pdm_get_envelope_trace(&env, &env_count)) {
+        const uint32_t chunk_size = 32u;
+        uint32_t offset = 0u;
+        uint32_t chunk_idx = 0u;
+        while (offset < env_count) {
+          uint32_t n = env_count - offset;
+          char label[5];
+          if (n > chunk_size) {
+            n = chunk_size;
+          }
+          label[0] = 'E';
+          label[1] = 'W';
+          if (chunk_idx < 10u) {
+            label[2] = (char)('0' + chunk_idx);
+            label[3] = '\0';
+          } else {
+            label[2] = (char)('0' + (chunk_idx / 10u));
+            label[3] = (char)('0' + (chunk_idx % 10u));
+            label[4] = '\0';
+          }
+          append_log_scan(env + offset, env + offset, n, env_count, label);
+          offset += n;
+          chunk_idx++;
+        }
+      }
+    }
+  }
+
   app_display_note_dose(dose_units,
                         logged_temp,
                         charger_info.battery_valid ? charger_info.battery_mv : -1,

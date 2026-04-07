@@ -60,7 +60,8 @@
   - Ziadne ine mikrofony okrem tohto jedneho nie su pripojene.
   - HAL vyzaduje `MicPairsNbr >= 2` aby aktivoval pair 2 (D2); pair 1 (D1) sa aktivuje tiez ale data z nej su odpad.
   - Mic musi snimat frekvenciou aspon 44 kHz (Nyquist pre 15 kHz peak detection).
-  - Aktualny PDM clock je 3.0 MHz (PLLSAI1=48 MHz, MCKDIV=8, `SAI_AUDIO_FREQUENCY_96K`). Frame rate = 93.75 kHz.
+  - Aktualny PDM clock je ~3.0 MHz (PLLSAI1=12 MHz, AudioFrequency=192K). Frame rate = 187.5 kHz.
+  - Povodne bolo AudioFrequency=96K → PDM clock ~1.5 MHz, co davalo len ~51 dB SQNR a klik pera bol pod sum floor.
   - Pre `ClockStrobing = SAI_CLOCKSTROBING_FALLINGEDGE` v RX mode: CKSTR=0 → SAI realne sampluje na **falling** edge → to je spravne pre L/R=GND mic.
 - Ostatne datove vetvy su fake a maju sa ignorovat.
 - `PE4` `Power_Detect_Pin`: HW detect externeho napajania. Nie je to spolahlivy indikator zivej USB session; neskor bola dorobena low-power USB detekcia cez alive packet logiku.
@@ -149,15 +150,18 @@
 - HAL mic start ma teraz pred kazdym capture vynuteny `HAL_SAI_DeInit()` → `HAL_SAI_Init()` par, co zarucuje balancovany `MspDeInit → MspInit` cyklus a cistu reinicializaciu SAI1 clock tree, DMA a NVIC.
 - `mic_pdm_stop_hw()` uz nevola `HAL_SAI_DeInit()` — DeInit je odlozeny do `mic_pdm_prepare_sai()` prednasledujuceho capture.
 - Mic je RX-only. `hdmatx` nesmie byt linknuty na ten isty DMA handle ako `hdmarx`, lebo po `HAL_SAI_DeInit()` to rozbije dalsi capture cyklus.
-- SAI PDM config: `MicPairsNbr=2, SlotNumber=4, DataSize=8, FrameLength=32, SlotActive=SAI_SLOTACTIVE_2, AudioFrequency=96K, MonoStereoMode=STEREO`.
+- SAI PDM config: `MicPairsNbr=2, SlotNumber=4, DataSize=8, FrameLength=32, SlotActive=SAI_SLOTACTIVE_2, AudioFrequency=192K, MonoStereoMode=STEREO`.
 - S `DataSize=8` a `DMA_PDATAALIGN_WORD`: kazdy 8-bit slot produkuje samostatne 32-bit DMA slovo (8 bitov dat v [7:0], zvysok je zero-padding). Preto s `SAI_SLOTACTIVE_2` (len slot 2 = pair2-L) ide do DMA len 1 word per frame a mic data su v byte 0 `(raw_word & 0xFF)`.
 - DOLEZITE: `SlotActive=0xFFFF` s extraciou byte 2 NEFUNGUJE, lebo kazdy slot generuje separatny 32-bit DMA word — byte 2 by bol padding (0x00), nie mic data. Toto bol potvrdeny bug (peak=32768).
 - `MonoStereoMode=STEREO` je nutny, lebo `MONO` (CR1.MONO=1) nuti SAI prijmat len slot 0, cim by sa obisiel `SlotActive` a dostal D1 odpad.
-- PDM → PCM: 5. rad CIC decimacny filter (CIC5) s R=16:
-  - Integrator kaskada (5 stupnov) bezi na PDM bit rate (8 bitov/frame × 93.75k = 750k bits/s).
-  - Comb kaskada (5 stupnov) bezi na decimovanom vystupe.
-  - Vystupny PCM sample rate = 750k / 16 = 46.875 kHz.
-  - CIC5 gain = R^N = 16^5 = 1048576 (21 bitov). Vystup sa >> 5 na signed 16-bit range.
+- DMA buffer: 4096 slov (half = 2048, ~10.7 ms pri 192K). Povodne 2048 spôsobovalo DMA overrun pri 31-bin Goertzel skene.
+- PDM → PCM: 4. rad CIC decimacny filter (CIC4) s R=32:
+  - Integrator kaskada (4 stupne) bezi na PDM bit rate (8 bitov/frame × 187.5k = 1.5M bits/s).
+  - Comb kaskada (4 stupne) bezi na decimovanom vystupe.
+  - Vystupny PCM sample rate = 1.5M / 32 = 46.875 kHz (rovnaky ako predtym).
+  - CIC4 gain = R^N = 32^4 = 1048576 (21 bitov). Vystup sa >> 9 na signed 16-bit range.
+  - R=32 + PDM clock 3 MHz dava ~75 dB SQNR (oproti ~51 dB s R=16 a 1.5 MHz clock).
+  - CIC5 bol odmietnute: prilis vysoky sum floor (P~8668, A~2075 v tichu), nevyhovujuci pre detekciu kliknutia.
   - Integrators pouzivaju `uint32_t` pre korektny modularny wrap pri dlhych capture.
   - Integrator aj comb loop su genericke (`for k=1..ORDER`), nie hardcoded na 4 stupne.
 - DC offset kompenzacia:
@@ -166,19 +170,88 @@
   - V `mic_pdm.c` existuje `s_bg_offset` (int32_t), ktory sa odcitava od kazdeho CIC vystupu pred konverziou na int16.
   - Verejne API: `mic_pdm_set_bg_offset(int32_t)` a `mic_pdm_get_bg_offset(void)`.
   - Novy field `avg_signed` (int32_t) v `mic_pdm_result_t` — priemer CIC vystupu so znamienkom (pred odcitanim bg_offset), pouziva sa ako kalibracna hodnota.
-- Enter-button kalibracia pozadia (state machine v `app_runtime.c`):
+- Enter-button kalibracia pozadia + Goertzel prahu (state machine v `app_runtime.c`):
   - Stlacenie Enter spusti kalibracny cyklus, ak je mic idle a nie je aktivna USB session ani dose capture.
-  - `MIC_CAL_REQUESTED`: bg_offset sa vynuluje, spusti sa mic capture.
-  - `MIC_CAL_WARMUP` (1000 ms): capture bezi, ale data sa zahadzuju (warmup mikrofonu + ustálenie CIC).
-  - `MIC_CAL_MEASURING` (1000 ms): novy capture, ktoreho `avg_signed` sa pouzije ako kalibracna hodnota.
-  - `MIC_CAL_DONE`: `take_result()` preberie vysledok, `mic_pdm_set_bg_offset(avg_signed)` sa zavola, stav sa vrati na IDLE.
-  - Warmup capture sa force-stopne a result sa zahodí; az druhy capture sa pouzije na kalibraciu.
-- Display pri validnom mic vysledku ukazuje `P<peak> A<avg> C<offset>`:
-  - `P` = peak_abs (16-bit PCM, absolutna hodnota)
-  - `A` = avg_abs (16-bit PCM, absolutna hodnota)
-  - `C` = aktualny bg_offset (0 = nekalibrované, nenulove = po Enter kalibrácii)
-- ZNAMY BUG (2026-04-02): peak ~9000, avg ~2000 v tichu. Kalibracne hodnoty (C=35-160) su realisticke ako pozadie, ale peak/avg su vysoko nad nimi. Niekde je este chyba, ktora zhorsuje peak a avg — treba hladat.
-- IM67D120 ma ~25 ms wakeup time po zapnuti CK2. Prvych 2400 DMA slov (~25.6 ms) sa preskoci (CIC nedostane tieto bity, transport metriky sa stale zbieraju).
+  - `MIC_CAL_REQUESTED`: bg_offset sa vynuluje, spusti sa jeden mic capture.
+  - `MIC_CAL_WARMUP` (100 ms): capture bezi, ale Goertzel kalibracia este nestartuje. Ciel: nechat sa usadit tlacidlove kliknutie (25 ms wakeup skip je uz v driveri). Jeden capture, bez force-stop.
+  - `MIC_CAL_MEASURING` (15 ms): `mic_pdm_start_goertzel_cal()` sa zavola, Goertzel sbiera ~11 binov = mean + 3σ pre prahovu hodnotu. Po 15 ms `mic_pdm_request_stop()`.
+  - `MIC_CAL_DONE`: `take_result()` preberie vysledok, `mic_pdm_set_bg_offset(avg_signed)` a `mic_pdm_finish_goertzel_cal()` sa zavola (threshold = mean + 3σ). Display sa okamzite prebudi cez `app_display_note_mic_debug()` a ukaze vysledok.
+  - Cely kalibracny priebeh je jeden mic capture (nie dva): warmup a meranie prebehnu v ramci toho isteho DMA streamu.
+- Display pri validnom mic vysledku:
+  - Spike detektor (aktualny): `R<ratio> P<peak_rms> B<bg_rms> <windows>`.
+  - Goertzel scan (ak by sa zapol): `K<peak_k> P<peak_mag> T<target_mag> <bins>`.
+  - Goertzel single-bin (ak by sa zapol): `G<aktivne>/<celkove> T<prah>`.
+  - API `app_display_note_mic_debug(result, battery_mv)` — bez `is_cal` parametra.
+- Display sa nevolá pocas aktivneho mic capture (Dose_Pin=1, tlacidlo NIE je stlacene = mic meria). Ked je Dose_Pin=0 (tlacidlo stlacene piestu), mic sa zastavi a display moze kreslit. Bitbangovy SPI display driver blokuje MCU na desiatky ms pocas prenosu framebufferu a sposoboval stratu DMA half-complete callbackov, co skracovalo pocet spracovanych Goertzel binov. Riesenie: `app_display_task()` sa v `app_runtime_tick()` preskoci ak `app_is_mic_capture_active()` vracia true.
+- Goertzel detektor kliknutia (~15.4 kHz, `mic_pdm.c`):
+  - N=64 vzoriek/bin, k=21, frekvencia = 21 × 46875 / 64 ≈ 15381 Hz, koeficient = 2·cos(2π·21/64) = −0.9428.
+  - Magnitude: sqrt(s1² + s2² − coeff·s1·s2), float aritmetika na Cortex-M4F FPU.
+  - Kalibracia: Welfordov online algoritmus pre mean a varianceiu, threshold = mean + 3σ.
+  - Pocas dose capture: kazdy bin s mag > threshold sa rata ako `goertzel_bins_active`.
+  - Pocet binov × ~1.37 ms = odhadovana dlzka detekovanej udalosti.
+  - API: `mic_pdm_start_goertzel_cal()`, `mic_pdm_finish_goertzel_cal()`, `mic_pdm_set/get_goertzel_threshold()`.
+  - Aktualne: `GOERTZEL_SCAN_MODE=0` (vypnute), nahradene sirokopasmovym spike detektorom.
+- Goertzel frekvenčný sken (historicky, teraz vypnute):
+  - Skusili sa 31 paralelnych binov (k=1..31) aj 16 binov (k=2,4,...,32 s krokom 2).
+  - 31-bin verzia sposobovala DMA overrun pri -O0 (44 CAL binov namiesto 60).
+  - 16-bin + 4096 DMA buffer overrun odstranili (68 CAL binov = korektne).
+  - Vysledky: rozdiely dose vs empty boli nahodne (±100–1000), ziadny konzistentny frekvencny vzor.
+  - Sporadicky sa objavili velke rozdiely (napr. k=22 +3307, k=12 +3625), ale na rôznych frekvenciach a neopakovatelne — artefakty manipulacie, nie klik.
+- Sirokopasmovy spike detektor (aktualny rezim, `SPIKE_DETECT_MODE=1`):
+  - Okno 256 vzoriek (~5.46 ms pri 46.875 kHz), pocita energiu (sum-of-squares) kazdého okna.
+  - CAL: pocita priemer energie okien → `s_spike_bg` (pozadie).
+  - MES: sleduje maximalnu energiu okna (`s_spike_peak`), pocita okna s energiou > 3× a > 5× bg, a pocita lokalny peak count cez `s_spike_peak_count`.
+  - DC HP filter: α = 1/512, cutoff ~14.6 Hz — signalove pasmo 23–114 Hz prechádza bez rezu.
+  - spikes_3x/5x sa pocitaju z raw `win_e`.
+  - Vysledok v `mic_pdm_result_t`: `scan_peak_mag` = peak_rms, `scan_target_mag` = bg_rms, `scan_peak_k` = ratio (capped 255), `goertzel_bins_active` = spikes_3x, `spike_clusters` = peak_count.
+  - Display: `R<ratio> P<peak_rms> B<bg_rms> <windows>`.
+  - Log format (MES/CAL): `record,timestamp,CAL/MES,total_windows,bg_rms,peak_rms,ratio,spikes_3x,peak_count`.
+  - `spike_clusters` field je v `mic_pdm_result_t` (`mic_pdm.h`); `app_runtime.c` MES/CAL logy maju 5 stlpcov (pridany 5. stlpec = peak_count).
+  - **Frekvencna analyza signalu (z ACCUM_FFT dat):** signál pera je mechanicka vibracia v pasme 23–114 Hz. Nad ~700 Hz je energia zanedbatelna. FH pasmo (>6.8 kHz) je mrtve.
+- **Kontaktny snimac (MEMS cez penovu pasku na pero) — funguje (od 2026-04-06):**
+  - IM67D120 prilepeny penovou paskou priamo na pero: ratio 9–22, spikes_3x 13–24 pri dose.
+  - Klik pera je dobre viditelny ako energeticka udalost v sirokopasmovom detektore.
+  - Problem: POCITANIE jednotlivych klikov je nepresne (viz historia nizsie).
+  - EMA vyhladenie energie: `s_spike_smooth_e += 0.25 * (win_e - s_spike_smooth_e)` (α=0.25, cutoff ~7 Hz).
+  - Klik = EMA energie stupala nad `SPIKE_DETECT_FACTOR` (3.0)×bg, dosiahla peak, klesla.
+  - Po pocitanom peaku sa nastavi `s_spike_post_peak = true`, `s_spike_fell_below = false`.
+  - Re-arm vyzaduje DVE podmienky:
+    1. EMA musi klestnut pod `SPIKE_REARM_FACTOR` (1.5)×bg → `fell_below = true` (hystereza)
+    2. EMA musi potom zacat stupat → re-arm (smerovy guard)
+  - Hysterezne pasmo je medzi 1.5×bg a 3×bg. Toto umoznuje re-arm aj pocas sustained activity, zatial co smerovy guard brani wobble re-armom.
+  - Stav: `s_spike_smooth_e` (float), `s_spike_post_peak` (bool), `s_spike_fell_below` (bool), `s_spike_was_rising` (bool), `s_spike_prev_smooth` (float), `s_spike_peak_count` (uint32_t).
+  - Vysledok ulozen v `s_result.spike_clusters`.
+  - **Stav: implementovane, caka na testovanie na HW.**
+  - **Lokalny peak detektor klikov + EMA + smerovy decay + hysterezny re-arm (aktualny pristup):**
+    - EMA vyhladenie energie: `s_spike_smooth_e += 0.25 * (win_e - s_spike_smooth_e)` (α=0.25, cutoff ~7 Hz).
+    - Klik = EMA energie stupala nad `SPIKE_DETECT_FACTOR` (3.0)×bg, dosiahla peak, klesla.
+    - Po pocitanom peaku sa nastavi `s_spike_post_peak = true`, `s_spike_fell_below = false`.
+    - Re-arm vyzaduje DVE podmienky:
+      1. EMA musi klestnut pod `SPIKE_REARM_FACTOR` (1.5)×bg → `fell_below = true` (hystereza)
+      2. EMA musi potom zacat stupat → re-arm (smerovy guard)
+    - Hysterezne pasmo je medzi 1.5×bg a 3×bg. Toto umoznuje re-arm aj pocas sustained activity, zatial co smerovy guard brani wobble re-armom.
+    - Stav: `s_spike_smooth_e` (float), `s_spike_post_peak` (bool), `s_spike_fell_below` (bool), `s_spike_was_rising` (bool), `s_spike_prev_smooth` (float), `s_spike_peak_count` (uint32_t).
+    - Vysledok ulozen v `s_result.spike_clusters`.
+    - **HW test 2026-04-06:**
+      - 4j+4j: 7, 4, 4, 4 (hore/dole)
+      - 9j+9j: 5, 3, 1, 5 (hore/dole)
+      - Komentár: 4j stále prepočítava (7), 9j podpočítava (1–5), hysteréza 1.5×bg je už dosiahnuteľná, ale stále nie je stabilná.
+      - Docasne doplneny debug log obalky `EW*`: po `MES`/`FL`/`FH` sa loguju riadky `EW0`, `EW1`, ... po 32 hodnotach, max 384 okien. Hodnota je `10 * EMA_energy / bg_energy`, cize `15` = re-arm prah a `30` = detect prah. Najblizsi HW test: pozriet, ci EMA medzi realnymi klikmi pada pod 15 a kde vznikaju falosne/preskocene peaky.
+      - Build po doplneni `EW*` debug logu: 2026-04-07 full build OK cez CubeIDE `make.exe -C Debug all`. Ostali iba existujuce warningy: nepouzite `s_gtz_s1/s_gtz_s2` pri vypnutom single-bin Goertzel mode a linker warning `usb.elf has a LOAD segment with RWX permissions`.
+- **Historia pokusov o pocitanie klikov (pre buduce referencie):**
+  - GAP cluster counter, GAP=15 (~21 ms): overcounting. Intra-klik ringing > 15 okien → kazde ozvena pocitana ako novy klik.
+  - GAP cluster counter, GAP=35 (~48 ms): undercounting. Pri rychlom tempe je inter-klik pauza < 35 okien → susedne kliky sa zlucuju do jedneho clustra.
+  - Onset + refractory, REFRACTORY=50 (~69 ms): undercounting. Energia ostava nad prahom nepretrzite cez viacero klikov → iba 1 onset na cely blok.
+  - Koren problemu: kontaktny snimac neukazuje cistocaste per-klik bursts — energia medzi klikmi zostava elevated (vibracne prelievanie cez penovu pasku).
+  - Lokalny peak detektor na raw `win_e`, okno 64 vzoriek (1.37 ms): overcounting ~4× (4j→16, 10j→13–24). Pricina: signál pera je vibrácia ~80 Hz, energia `ac²` osciluje na 160 Hz = 4–5 falošných peakov na klik v ramci jedneho okna 732 Hz. Navyse DC HP filter α=1/128 (cutoff ~58 Hz) rezal priamo do signaloveho pasma 23–57 Hz.
+  - Lokalny peak detektor + EMA vyhladenie + refractory=12 (5.46ms okno): 4j→13 (+9, pomalé), 10j→11 (+1, rýchle). Konzistencia vyborna (identické páry). Problem: pri pomalych klikoch (~375ms/klik) peró produkuje ~3 oddelene vibracne udalosti na klik (odraz pruziny), kazda ma vlastny EMA peak. Casova refractory nestaci pokryt rozstup medzi odrazmi.
+  - Lokalny peak detektor + EMA + hystereza 2×bg: NESTABILNE. 4j→11/9/5/14/4 (obrovska variancia). Pricina: absolutny prah 2×bg sa niekedy prekroci pocas ringingu a niekedy nie — zavisi od presneho tvaru signalu, nie od poctu klikov.
+  - Lokalny peak detektor + EMA + smerovy decay tracker (bez fell_below guardu): lepsie nez hystereza, 0j→0 OK, no 4j→2-3 (undercounting), 10j→12-14 (overcounting). Pricina overcountingu: EMA wobble pocas decayu nad 3×bg okamzite re-armuje detektor, kazdy wobble-up-down nad 3×bg = falosny peak.
+  - Lokalny peak detektor + EMA + smerovy decay + fell_below@3×bg: MASIVNY UNDERCOUNTING. 4j→1/4, 9j→1/1. Pricina: fell_below vyzadoval EMA < 3×bg = rovnaky prah ako detekcia. EMA pocas sustained klikania nikdy neklesne pod 3×bg (85% okien je nad 3×bg). Re-arm nikdy nenastane.
+  - Lokalny peak detektor + EMA + smerovy decay + hysterezny re-arm 1.5×bg (aktualne):
+    - re-arm prah znizeny na 1.5×bg. Hysterezne pasmo 1.5×–3×bg umoznuje re-arm aj pocas sustained activity. Smerovy guard brani wobble re-armom.
+    - HW test 2026-04-06: 4j+4j: 7/4/4/4, 9j+9j: 5/3/1/5. 4j stále prepočítava (7), 9j podpočítava (1–5), hysteréza 1.5×bg je už dosiahnuteľná, ale stále nie je stabilná.
+- IM67D120 ma ~25 ms wakeup time po zapnuti CK2. Prvych 4800 DMA slov (~25.6 ms) sa preskoci (CIC nedostane tieto bity, transport metriky sa stale zbieraju).
 - Popri CIC PCM sa zbieraju surove transport sanity metriky z DMA bufferu:
   - pocet raw slov `0x00000000`
   - pocet raw slov `0xFFFFFFFF`
@@ -214,11 +287,11 @@
 - Pri ladeni mikrofónu najprv nesmie byt rozbita baza: `dose`, USB, logovanie, display a low-power spravanie musia fungovat bez regresii.
 
 ## Otvorene TODO
-- **BUG: peak ~9000 / avg ~2000 v tichu** — kalibracne hodnoty (C=35-160) sedia, ale peak a avg su anomalne vysoke. Treba najst pricinu (mozne: zly bit extraction, CIC overflow, wakeup skip nedostatocny, interference z D1/PA10, atd.).
 - Dose flow: preklopit aktualny runtime na finalny cielovy flow `0 -> 1 -> 0`, aby start/stop mic sedel s mechanikou pera a logovanie prislo az po potvrdeni uzivatelom.
 - Dose flow: doplnit stav, kde sa po spracovani vysledku zobrazi namerana davka a caka sa na potvrdenie uzivatelom pred zapisom do logu.
+- Mic: overit presnost lokalneho peak detektora pre rozne pocty jednotiek (5j, 8j, 9j, 11j) a rozne tempa natahnutia.
 - Mic: overit spravanie pri tichu, hovore a pri zdroji hluku typu PC ventilator.
-- Mic: overit, ci 3 MHz PDM clock a CIC4 PCM dava rozumne cisla pre ticho aj zvuk.
+- Mic: overit, ci 3 MHz PDM clock a CIC4 R=32 PCM dava rozumne cisla pre ticho aj zvuk.
 - Low power: overit, ze po ukonceni merania davky sa mic napajanie vypne a MCU sa vrati spat do sleep rezimu.
 - Bateria/ADC: vycitavanie napatia baterie nie je spolahlive. FW casto drzi staru hodnotu a az po case skokovo prejde na novu.
 - Bateria/ADC: pri vypise treba pouzit cerstve meranie, nie stare cache bez overenia.
@@ -232,6 +305,19 @@
 - `PA3` ostava vyhradne TMP102 alert.
 - `PA10` je zamerne zdielany medzi charger status a `SAI1_D1` podla rezimu zariadenia.
 - `Dose` hrany su teraz prepnute na fyzicky flow pera `0 -> 1 -> 0`.
+- SAI AudioFrequency zmenene z 96K na 192K (PDM clock ~3 MHz, lepsie SQNR).
+- CIC R zvysene z 16 na 32 (>>5 → >>9). PCM rate ostava 46.875 kHz.
+- DMA buffer zdvojnasobeny z 2048 na 4096 slov (riesenie DMA overrun pri skenovacom rezime).
+- Goertzel frekvenčný sken (31-bin aj 16-bin) vyskusany a odlozeny — nepriniesol detekovatelny signal.
+- Sirokopasmovy spike detektor implementovany — MEMS mic v pouzdri nevidel klik (ratio ~1.3, spikes=0).
+- Kontaktny snimac (MEMS lepeny penovou paskou na pero): klik pera viditelny (ratio 9–22), toto je aktualne pouzivana metoda.
+- Log format rozsireny na 5 stlpcov: pridany `peak_count` (= `spike_clusters` z `mic_pdm_result_t`).
+- Pocitanie klikov: fell_below prah znizeny z 3×bg na 1.5×bg (SPIKE_REARM_FACTOR). Detekcia ostava na 3×bg (SPIKE_DETECT_FACTOR). Hysterezne pasmo 1.5×–3×bg: re-arm je dosiahnutelny medzi klikmi, ale dostatocne vysoko nad sumom. Smerovy guard zachovany.
+- Docasne doplneny `EW*` debug log obalky pre dalsi HW test: `EW` hodnota = `10 * EMA_energy / bg_energy`; `15` je re-arm prah, `30` je detect prah. Ciel je zistit, ci sa EMA medzi klikmi vobec re-armuje a ci falosne peaky vznikaju z odrazov alebo wobble decayu.
+- Full build po `EW*` debug zmene bol uspesny 2026-04-07. Build pouzil explicitnu CubeIDE cestu na `make.exe`, lebo `make` nebol v aktualnom `PATH`.
+- DC HP filter posunuty z α=1/128 (cutoff ~58 Hz) na α=1/512 (cutoff ~14.6 Hz) — predosla hodnota rezala signalove pasmo 23–57 Hz.
+- SPIKE_WIN_SIZE zvacseny z 64 na 256 vzoriek (5.46 ms): menej window evaluacii, stabilnejsia energia, okno uz nie je v konflikte s 160 Hz energetickou oscilaciou.
+- EMA vyhladenie `s_spike_smooth_e` (α=0.25) pridane pred peak detekciou: utlmuje sub-klik oscilacie, peak detektor pracuje na hladkom profile.
 
 ## Kontrolny zoznam pred dalsou zmenou
 - Overit, ci zmena patri do aktualnej temy. Ak nie, len ju zapisat do TODO.

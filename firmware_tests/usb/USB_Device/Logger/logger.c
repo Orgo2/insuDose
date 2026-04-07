@@ -226,6 +226,49 @@ bool append_log_rotating(uint8_t davka, int8_t teplota_c)
     return true;
 }
 
+bool append_log_scan(const uint16_t *avg, const uint16_t *bg, uint32_t nbins,
+                     uint32_t total_bins, const char *label)
+{
+    char line[256];
+    int pos = 0;
+    int rem = (int)sizeof(line);
+    int n;
+    uint32_t record_number;
+    rtc_datetime_t datetime;
+    bool timestamp_valid;
+    char timestamp[13];
+
+    record_number = (s_record_counter == UINT32_MAX) ? UINT32_MAX : (s_record_counter + 1u);
+    timestamp_valid = rtc_driver_has_valid_datetime() && rtc_driver_get_datetime(&datetime);
+    if (timestamp_valid) {
+        logger_format_timestamp_12(timestamp, &datetime);
+    } else {
+        memset(timestamp, '/', 12);
+        timestamp[12] = '\0';
+    }
+
+    n = snprintf(line + pos, (size_t)rem, "%lu,%s,%s,%lu",
+                 (unsigned long)record_number, timestamp,
+                 label ? label : "S", (unsigned long)total_bins);
+    if (n > 0 && n < rem) { pos += n; rem -= n; }
+
+    for (uint32_t i = 0u; i < nbins && rem > 6; i++) {
+        n = snprintf(line + pos, (size_t)rem, ",%u", (unsigned)avg[i]);
+        if (n > 0 && n < rem) { pos += n; rem -= n; }
+    }
+
+    if (rem > 2) {
+        line[pos++] = '\r'; line[pos++] = '\n'; line[pos] = '\0';
+    }
+
+    if (!logger_append_line(line)) {
+        return false;
+    }
+
+    s_record_counter = record_number;
+    return true;
+}
+
 /* Open the log file only when firmware, not the USB host, owns the RAM disk. */
 static bool logger_prepare_for_write(FIL *file)
 {
